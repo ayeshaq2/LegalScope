@@ -1,0 +1,65 @@
+<!-- ╔══════════════════════════════════════════════════════════════╗
+     ║  SIDEBAR COMPONENT                                          ║
+     ║  Left panel showing documents, session context, workflow    ║
+     ║                                                             ║
+     ║  Sections:                                                  ║
+     ║   1. Documents list    — shows uploaded files               ║
+     ║   2. Session context   — tracks state across the session    ║
+     ║   3. Workflow steps    — shows multi-step progress          ║
+     ║                                                             ║
+     ║  JS dependency: sidebar.js, workflow.js                     ║
+     ╚══════════════════════════════════════════════════════════════╝ -->
+
+<aside class="w-64 flex-shrink-0 glass flex flex-col overflow-hidden">
+
+  <!-- ── Section 1: Documents ── -->
+  <div class="sidebar-section p-4 pb-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em]">Documents</h2>
+      <span id="doc-count" class="text-[9px] font-bold text-gray-600 bg-white/[0.04] w-5 h-5 flex items-center justify-center rounded-full">0</span>
+    </div>
+    <div id="doc-list">
+      <p class="text-[11px] text-gray-600 italic py-1">No documents uploaded</p>
+    </div>
+  </div>
+
+  <!-- ── Section 2: Session Context ── -->
+  <div class="sidebar-section p-4 flex-1 overflow-y-auto">
+    <h2 class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em] mb-3">Session Context</h2>
+    <div id="session-context" class="space-y-3">
+      <div>
+        <span class="text-[9px] uppercase tracking-[0.15em] text-gray-600 font-semibold">Document Type</span>
+        <p id="ctx-doc-type" class="text-[12px] text-gray-400 mt-0.5 font-medium">—</p>
+      </div>
+      <div>
+        <span class="text-[9px] uppercase tracking-[0.15em] text-gray-600 font-semibold">Analysis Focus</span>
+        <p id="ctx-focus" class="text-[12px] text-gray-400 mt-0.5 font-medium">—</p>
+      </div>
+      <div>
+        <span class="text-[9px] uppercase tracking-[0.15em] text-gray-600 font-semibold">Risk Level</span>
+        <p id="ctx-risk" class="text-[12px] text-gray-400 mt-0.5 font-medium">—</p>
+      </div>
+      <div>
+        <span class="text-[9px] uppercase tracking-[0.15em] text-gray-600 font-semibold">Key Clauses</span>
+        <p id="ctx-clauses" class="text-[12px] text-gray-400 mt-0.5 font-medium">—</p>
+      </div>
+      <div>
+        <span class="text-[9px] uppercase tracking-[0.15em] text-gray-600 font-semibold">Queries</span>
+        <p id="ctx-queries" class="text-[12px] text-gray-400 mt-0.5 font-medium">0</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Section 3: Workflow Steps ── -->
+  <div class="p-4">
+    <h2 class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.16em] mb-3">Workflow</h2>
+    <div class="space-y-1">
+      <div id="step-upload"   class="step-indicator step-active"><div class="step-dot"></div><span>Upload</span></div>
+      <div id="step-process"  class="step-indicator"><div class="step-dot"></div><span>Processing</span></div>
+      <div id="step-retrieve" class="step-indicator"><div class="step-dot"></div><span>Retrieval & Analysis</span></div>
+      <div id="step-clarify"  class="step-indicator"><div class="step-dot"></div><span>Clarification</span></div>
+      <div id="step-report"   class="step-indicator"><div class="step-dot"></div><span>Report</span></div>
+    </div>
+  </div>
+
+</aside>

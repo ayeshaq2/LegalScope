@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LegalScope — Legal Document Analysis</title>
+
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: {
+              50: '#f0f3f9', 100: '#d9e0ef', 200: '#b3c1df', 300: '#8da2cf',
+              400: '#6783bf', 500: '#4a6aa8', 600: '#3a5489', 700: '#2d4170',
+              800: '#141c32', 900: '#0d1220', 950: '#080c18',
+            },
+            gold: {
+              50: '#fdf8e8', 100: '#f7ebbd', 200: '#f0d88a', 300: '#e6c24e',
+              400: '#c9a84c', 500: '#b8953f', 600: '#9a7a2e', 700: '#7a5f22',
+              800: '#5c4619', 900: '#3d2e10',
+            }
+          },
+          fontFamily: {
+            display: ['Playfair Display', 'serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/custom.css">
+</head>
+<body class="h-full bg-navy-950 text-gray-200 font-sans overflow-hidden">
+
+  <!-- Animated background -->
+  <div class="bg-mesh"></div>
+
+  <!-- ── Navbar ── -->
+  {% include 'components/navbar.html' %}
+
+  <!-- ── Main Layout ── -->
+  <div class="flex h-full pt-14 relative z-10">
+
+    <!-- ── Sidebar ── -->
+    {% include 'components/sidebar.html' %}
+
+    <!-- ── Content Area ── -->
+    <main class="flex-1 flex flex-col overflow-hidden">
+      {% include 'components/upload.html' %}
+      {% include 'components/analyze.html' %}
+      {% include 'components/report.html' %}
+    </main>
+
+  </div>
+
+  <!-- ── Scripts (loaded in order) ── -->
+  <script src="/static/js/state.js"></script>
+  <script src="/static/js/upload.js"></script>
+  <script src="/static/js/chat.js"></script>
+  <script src="/static/js/workflow.js"></script>
+  <script src="/static/js/sidebar.js"></script>
+  <script src="/static/js/main.js"></script>
+</body>
+</html>

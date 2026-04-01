@@ -49,7 +49,7 @@ def build_or_load_db():
 
     print(f" Dataset loaded with {len(dataset)} rows")
 
-    dataset = dataset.select(range(50000))
+    dataset = dataset.select(range(10000))
     # Prepare documents
     print(" Processing docs")
 
@@ -100,7 +100,6 @@ def build_or_load_db():
             print(f"\n Processed {i} chunks")
 
     print("saving to db")
-    db.persist()
 
     print(f" DB created with {len(chunks)} chunks")
     return db

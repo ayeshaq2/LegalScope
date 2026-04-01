@@ -6,6 +6,7 @@ sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 import os
 import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import load_dataset
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -104,5 +105,18 @@ def build_or_load_db():
 
     print(f" DB created with {len(chunks)} chunks")
     return db
+
+# =========================
+# LOAD GENERATOR
+# =========================
+
+def load_generator():
+    tokenizer = AutoTokenizer.from_pretrained(GEN_MODEL)
+    model = AutoModelForCausalLM.from_pretrained(
+        GEN_MODEL,
+        device_map="auto",
+        torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32
+    )
+    return tokenizer, model
 
 build_or_load_db()

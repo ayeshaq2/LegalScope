@@ -6,6 +6,7 @@ sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 import os
 import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import load_dataset
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -104,4 +105,109 @@ def build_or_load_db():
     print(f" DB created with {len(chunks)} chunks")
     return db
 
+# =========================
+# LOAD GENERATOR
+# =========================
+
+def load_generator():
+    tokenizer = AutoTokenizer.from_pretrained(GEN_MODEL)
+    model = AutoModelForCausalLM.from_pretrained(
+        GEN_MODEL,
+        device_map="auto",
+        torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32
+    )
+    return tokenizer, model
+
+# =========================
+# PROMPTS
+# =========================
+
+def trial_prompt(query, docs, history=""):
+    context = "\n\n".join([d.page_content for d in docs])
+
+    return f"""
+You are LegalScope, a trial preparation assistant.
+
+CASE MATERIAL:
+{context}
+
+HISTORY:
+{history}
+
+QUESTION:
+{query}
+
+OUTPUT:
+
+### Trial Preparation Report
+Key Legal Issues:
+Supporting Arguments:
+Opposing Arguments:
+Risk Assessment:
+Recommended Strategy:
+Referenced Evidence:
+Final Answer:
+"""
+
+
+def opposing_counsel_prompt(query, docs):
+    context = "\n\n".join([d.page_content for d in docs])
+
+    return f"""
+You are an aggressive opposing lawyer.
+
+Your goal:
+- Attack the case
+- Find weaknesses
+- Challenge assumptions
+
+CASE:
+{context}
+
+LAWYER ARGUMENT:
+{query}
+
+Respond with:
+- Counterarguments
+- Weaknesses
+- Cross-examination questions
+"""
+
+
+def judge_prompt(plaintiff, defense):
+    return f"""
+You are a neutral judge.
+
+PLAINTIFF ARGUMENT:
+{plaintiff}
+
+DEFENSE ARGUMENT:
+{defense}
+
+Evaluate:
+- Which is stronger?
+- Why?
+- What is missing?
+
+Give a short ruling.
+"""
+
+
+# =========================
+# GENERATION
+# =========================
+
+def generate(tokenizer, model, prompt):
+    inputs = tokenizer(prompt, return_tensors="pt").to(DEVICE)
+
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=500,
+        temperature=0.3
+    )
+
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+
 build_or_load_db()
+

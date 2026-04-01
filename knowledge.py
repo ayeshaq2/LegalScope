@@ -209,6 +209,60 @@ def generate(tokenizer, model, prompt):
 
     return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
+# =========================
+# MAIN CLASS
+# =========================
 
-build_or_load_db()
+class LegalScope:
+    def __init__(self):
+        self.db = build_or_load_db()
+        self.retriever = self.db.as_retriever(search_kwargs={"k": 5})
+        self.tokenizer, self.model = load_generator()
 
+        self.history = []
+        self.active_case_docs = None
+
+    # ---------------------
+    # Load a case
+    # ---------------------
+    def load_case(self, topic):
+        self.active_case_docs = self.retriever.get_relevant_documents(topic)
+        print("\n Case loaded.\n")
+
+    # ---------------------
+    # Ask about case
+    # ---------------------
+    def ask(self, query):
+        docs = self.active_case_docs
+        history = "\n".join(self.history[-3:])
+
+        prompt = trial_prompt(query, docs, history)
+        response = generate(self.tokenizer, self.model, prompt)
+
+        self.history.append(f"Q: {query}\nA: {response}")
+        return response
+
+    # ---------------------
+    # Mock Trial Simulator
+    # ---------------------
+    def mock_trial(self, user_argument):
+        docs = self.active_case_docs
+
+        print("\n Running Mock Trial...\n")
+
+        plaintiff = user_argument
+
+        defense_prompt = opposing_counsel_prompt(plaintiff, docs)
+        defense = generate(self.tokenizer, self.model, defense_prompt)
+
+        judge = generate(
+            self.tokenizer,
+            self.model,
+            judge_prompt(plaintiff, defense)
+        )
+
+        return {
+            "plaintiff": plaintiff,
+            "defense": defense,
+            "judge": judge
+        }

@@ -1,0 +1,185 @@
+<div id="view-case-workspace" class="view-panel flex-1 flex-col hidden overflow-hidden">
+  <div class="flex flex-col h-full">
+
+    <!-- Case Header + Tabs -->
+    <div class="px-8 pt-6 pb-0 flex-shrink-0">
+      <!-- Case Name -->
+      <div class="flex items-center gap-3 mb-5">
+        <button onclick="switchView('projects')" class="p-1.5 rounded-lg hover:bg-white/[0.04] text-gray-500 hover:text-gray-300 transition-all" title="Back to Cases">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+        </button>
+        <div>
+          <h2 id="case-title" class="text-lg font-display font-bold text-white tracking-tight">Case Name</h2>
+          <p id="case-desc" class="text-[11px] text-gray-500 mt-0.5"></p>
+        </div>
+      </div>
+
+      <!-- Tab Bar -->
+      <div class="flex bg-white/[0.03] rounded-lg p-[3px] border border-white/[0.04] w-fit">
+        <button onclick="switchCaseTab('files')" id="case-tab-btn-files" class="view-btn active-view px-5 py-[6px] rounded-md text-[11px] font-semibold tracking-wide transition-all">
+          <span class="flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+            Files
+          </span>
+        </button>
+        <button onclick="switchCaseTab('analyze')" id="case-tab-btn-analyze" class="view-btn px-5 py-[6px] rounded-md text-[11px] font-semibold tracking-wide transition-all">
+          <span class="flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>
+            Analyze
+          </span>
+        </button>
+        <button onclick="switchCaseTab('trial')" id="case-tab-btn-trial" class="view-btn px-5 py-[6px] rounded-md text-[11px] font-semibold tracking-wide transition-all">
+          <span class="flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0012 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 01-2.031.352 5.988 5.988 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0l2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 01-2.031.352 5.989 5.989 0 01-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971z"/></svg>
+            Mock Trial
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: FILES ═══ -->
+    <div id="case-tab-files" class="case-tab-content flex-1 overflow-y-auto p-8 pt-6">
+      <div class="max-w-2xl">
+        <!-- Drop Zone -->
+        <div id="case-drop-zone" class="drop-zone-area relative border border-dashed border-white/[0.08] rounded-2xl p-8 text-center cursor-pointer group shimmer-border mb-6">
+          <input type="file" id="case-file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" multiple accept=".pdf,.doc,.docx,.txt">
+          <div class="flex flex-col items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-navy-800 to-navy-900 border border-white/[0.06] flex items-center justify-center group-hover:border-gold-400/20 transition-all shadow-lg">
+              <svg class="w-5 h-5 text-gray-500 group-hover:text-gold-400/80 transition-colors duration-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-300">Drop case files here or <span class="text-gold-400 font-semibold">browse</span></p>
+              <p class="text-[11px] text-gray-600 mt-1">PDF, DOC, DOCX, TXT — contracts, evidence, briefs</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Uploading Indicator -->
+        <div id="case-upload-progress" class="hidden mb-4">
+          <div class="flex items-center gap-3 p-3 rounded-lg bg-gold-400/[0.04] border border-gold-400/[0.1]">
+            <div class="flex gap-1">
+              <div class="w-1.5 h-1.5 rounded-full bg-gold-400/70 animate-bounce" style="animation-delay:0ms"></div>
+              <div class="w-1.5 h-1.5 rounded-full bg-gold-400/70 animate-bounce" style="animation-delay:150ms"></div>
+              <div class="w-1.5 h-1.5 rounded-full bg-gold-400/70 animate-bounce" style="animation-delay:300ms"></div>
+            </div>
+            <span class="text-[11px] text-gold-400/80 font-medium">Processing and indexing documents …</span>
+          </div>
+        </div>
+
+        <!-- File List -->
+        <div id="case-file-list" class="space-y-1.5">
+          <p id="case-files-empty" class="text-[11px] text-gray-600 italic py-2">No files uploaded yet</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: ANALYZE ═══ -->
+    <div id="case-tab-analyze" class="case-tab-content hidden flex-1 flex flex-col overflow-hidden">
+      <!-- Chat Messages -->
+      <div id="case-chat-messages" class="flex-1 overflow-y-auto p-6 space-y-5">
+        <!-- AI Welcome -->
+        <div class="flex gap-3 max-w-3xl">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-gold-400 to-gold-600 flex-shrink-0 flex items-center justify-center shadow-lg shadow-gold-400/10">
+            <svg class="w-4 h-4 text-navy-950" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1.5">
+              <span class="text-[12px] font-bold text-white">LegalScope</span>
+            </div>
+            <div class="chat-bubble-ai rounded-2xl rounded-tl-md p-5">
+              <p class="text-[13px] text-gray-300 leading-relaxed">Upload case files in the Files tab, then ask me anything about your case. I can help with strategy, risk analysis, evidence review, and more.</p>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button onclick="insertCaseQuery('What are the strongest arguments for our side?')" class="suggestion-chip text-[11px] px-3.5 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06] text-gray-500 font-medium">Strongest arguments?</button>
+                <button onclick="insertCaseQuery('What are the key risks and weaknesses in our case?')" class="suggestion-chip text-[11px] px-3.5 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06] text-gray-500 font-medium">Risks & weaknesses?</button>
+                <button onclick="insertCaseQuery('Summarize the key evidence and how it supports our position')" class="suggestion-chip text-[11px] px-3.5 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06] text-gray-500 font-medium">Evidence summary</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Input -->
+      <div class="p-4 border-t border-white/[0.03] bg-navy-950/60 backdrop-blur-xl flex-shrink-0">
+        <div class="max-w-3xl mx-auto">
+          <div class="chat-input-wrap flex items-end gap-2 rounded-xl p-1.5">
+            <textarea id="case-chat-input" rows="1" placeholder="Ask about your case …" class="flex-1 bg-transparent px-3 py-2.5 text-[13px] text-gray-200 placeholder-gray-600 focus:outline-none resize-none"></textarea>
+            <button onclick="sendCaseMessage()" class="p-2.5 rounded-lg bg-gradient-to-r from-gold-400 to-gold-600 text-navy-950 hover:shadow-lg hover:shadow-gold-400/20 transition-all flex-shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>
+            </button>
+          </div>
+          <p class="text-[9px] text-gray-700 mt-2 text-center tracking-wide">AI-generated analysis — not legal advice. Always verify with a legal professional.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ TAB: MOCK TRIAL ═══ -->
+    <div id="case-tab-trial" class="case-tab-content hidden flex-1 overflow-y-auto p-8 pt-6">
+      <div class="max-w-3xl mx-auto">
+
+        <!-- Argument Input -->
+        <div class="mb-6">
+          <label class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.15em] block mb-2.5">Your Argument (Plaintiff)</label>
+          <textarea id="case-trial-argument" rows="5" placeholder="Present your legal argument here …" class="w-full bg-white/[0.02] border border-white/[0.06] rounded-xl px-4 py-3.5 text-[13px] text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gold-400/30 transition-colors resize-none"></textarea>
+          <div class="flex items-center justify-between mt-3">
+            <div class="flex flex-wrap gap-2">
+              <button onclick="document.getElementById('case-trial-argument').value='The defendant breached the employment contract by terminating my client without the required 30-day written notice as specified in Section 8.1.'" class="suggestion-chip text-[11px] px-3 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.06] text-gray-500 font-medium">Wrongful termination</button>
+              <button onclick="document.getElementById('case-trial-argument').value='The non-compete clause is unreasonably restrictive and should be deemed unenforceable given its excessive duration and geographic scope.'" class="suggestion-chip text-[11px] px-3 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.06] text-gray-500 font-medium">Non-compete dispute</button>
+            </div>
+            <button id="btn-case-trial" onclick="runCaseTrial()" class="btn-primary px-6 py-3 rounded-xl text-navy-950 font-bold text-sm tracking-wide">
+              Run Mock Trial
+            </button>
+          </div>
+        </div>
+
+        <!-- Trial Loading -->
+        <div id="case-trial-loading" class="hidden mb-6">
+          <div class="report-card p-8 rounded-xl text-center">
+            <div class="flex items-center justify-center gap-3 mb-3">
+              <div class="flex gap-1.5">
+                <div class="w-2 h-2 rounded-full bg-gold-400/70 animate-bounce" style="animation-delay:0ms"></div>
+                <div class="w-2 h-2 rounded-full bg-gold-400/70 animate-bounce" style="animation-delay:150ms"></div>
+                <div class="w-2 h-2 rounded-full bg-gold-400/70 animate-bounce" style="animation-delay:300ms"></div>
+              </div>
+            </div>
+            <p class="text-[13px] text-gray-400 font-medium">Simulating courtroom proceedings …</p>
+          </div>
+        </div>
+
+        <!-- Trial Results -->
+        <div id="case-trial-results" class="hidden space-y-5">
+          <div class="report-card p-6 rounded-xl">
+            <h3 class="text-[12px] font-bold text-white mb-4 flex items-center gap-2">
+              <span class="text-[9px] font-semibold text-blue-400 bg-blue-500/10 px-2 py-[2px] rounded-md uppercase tracking-wide">Plaintiff</span>
+              Your Argument
+            </h3>
+            <div id="case-trial-plaintiff" class="text-[13px] text-gray-300 leading-relaxed whitespace-pre-wrap"></div>
+          </div>
+          <div class="report-card p-6 rounded-xl">
+            <h3 class="text-[12px] font-bold text-white mb-4 flex items-center gap-2">
+              <span class="text-[9px] font-semibold text-red-400 bg-red-500/10 px-2 py-[2px] rounded-md uppercase tracking-wide">Defense</span>
+              Opposing Counsel
+            </h3>
+            <div id="case-trial-defense" class="text-[13px] text-gray-300 leading-relaxed whitespace-pre-wrap"></div>
+          </div>
+          <div class="report-card p-6 rounded-xl">
+            <h3 class="text-[12px] font-bold text-white mb-4 flex items-center gap-2">
+              <span class="text-[9px] font-semibold text-gold-400 bg-gold-400/10 px-2 py-[2px] rounded-md uppercase tracking-wide">Judge</span>
+              Judicial Ruling
+            </h3>
+            <div id="case-trial-ruling" class="text-[13px] text-gray-300 leading-relaxed whitespace-pre-wrap"></div>
+          </div>
+          <div class="text-center pt-2 pb-8">
+            <button onclick="resetCaseTrial()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] text-[12px] font-semibold text-gray-400 hover:bg-white/[0.04] hover:text-gray-200 transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/></svg>
+              Run Another Trial
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>

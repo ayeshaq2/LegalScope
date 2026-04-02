@@ -1,0 +1,55 @@
+<div id="view-projects" class="view-panel flex-1 flex-col hidden overflow-y-auto">
+  <div class="p-8 max-w-4xl mx-auto w-full">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-8">
+      <div>
+        <h2 class="text-2xl font-display font-bold text-white tracking-tight">Your Cases</h2>
+        <p class="text-[12px] text-gray-500 mt-1">Create and manage case projects for trial preparation</p>
+      </div>
+      <button onclick="toggleNewCaseForm()" id="btn-toggle-new-case" class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-gold-400 to-gold-600 text-navy-950 font-bold text-[12px] tracking-wide hover:shadow-lg hover:shadow-gold-400/20 transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        New Case
+      </button>
+    </div>
+
+    <!-- New Case Form (hidden by default) -->
+    <div id="new-case-form" class="hidden mb-8">
+      <div class="report-card p-6 rounded-xl">
+        <h3 class="text-[12px] font-bold text-white mb-4 flex items-center gap-2">
+          <svg class="w-4 h-4 text-gold-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          Create New Case
+        </h3>
+        <div class="space-y-4">
+          <div>
+            <label class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.15em] block mb-1.5">Case Name</label>
+            <input id="new-case-name" type="text" placeholder="e.g. Smith v. Johnson Industries" class="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-2.5 text-[13px] text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gold-400/30 transition-colors">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.15em] block mb-1.5">Description</label>
+            <textarea id="new-case-desc" rows="2" placeholder="Brief description of the case …" class="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-4 py-2.5 text-[13px] text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gold-400/30 transition-colors resize-none"></textarea>
+          </div>
+          <div class="flex gap-2 justify-end">
+            <button onclick="toggleNewCaseForm()" class="px-4 py-2 rounded-lg border border-white/[0.06] text-[12px] font-semibold text-gray-500 hover:text-gray-300 transition-colors">Cancel</button>
+            <button onclick="createProject()" class="btn-primary px-5 py-2 rounded-lg text-navy-950 font-bold text-[12px]">Create Case</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Projects Grid -->
+    <div id="projects-list" class="grid grid-cols-2 gap-4">
+      <!-- populated by projects.js -->
+    </div>
+
+    <!-- Empty State -->
+    <div id="projects-empty" class="text-center py-16">
+      <div class="w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/[0.05] flex items-center justify-center mx-auto mb-4">
+        <svg class="w-7 h-7 text-gray-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/></svg>
+      </div>
+      <p class="text-[13px] text-gray-500 font-medium mb-1">No cases yet</p>
+      <p class="text-[11px] text-gray-600">Click "New Case" to create your first case project</p>
+    </div>
+
+  </div>
+</div>

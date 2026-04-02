@@ -1,0 +1,57 @@
+<div id="view-doc-upload" class="view-panel flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto hidden">
+  <div class="max-w-xl w-full">
+
+    <!-- Header -->
+    <div class="text-center mb-10">
+      <div class="inline-flex items-center gap-1.5 text-[10px] font-semibold text-blue-400/60 bg-blue-400/[0.06] px-3 py-1 rounded-full uppercase tracking-[0.18em] mb-4">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+        Document Analysis
+      </div>
+      <h2 class="text-3xl font-display font-bold text-white mb-2 tracking-tight">Upload Your Document</h2>
+      <p class="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">Upload a contract, NDA, or legal agreement and ask questions to understand it better</p>
+    </div>
+
+    <!-- Drop Zone -->
+    <div id="doc-drop-zone" class="drop-zone-area relative border border-dashed border-white/[0.08] rounded-2xl p-10 text-center cursor-pointer group shimmer-border">
+      <input type="file" id="doc-file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" accept=".pdf,.doc,.docx,.txt">
+      <div class="flex flex-col items-center gap-3">
+        <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-navy-800 to-navy-900 border border-white/[0.06] flex items-center justify-center group-hover:border-blue-400/20 transition-all shadow-lg">
+          <svg class="w-6 h-6 text-gray-500 group-hover:text-blue-400/80 transition-colors duration-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-300">Drop your document here or <span class="text-blue-400 font-semibold">browse</span></p>
+          <p class="text-[11px] text-gray-600 mt-1">PDF, DOC, DOCX, TXT — one document at a time</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upload Progress -->
+    <div id="doc-upload-progress" class="hidden mt-6">
+      <div class="flex items-center gap-3 p-4 rounded-xl bg-blue-400/[0.04] border border-blue-400/[0.1]">
+        <div class="flex gap-1">
+          <div class="w-1.5 h-1.5 rounded-full bg-blue-400/70 animate-bounce" style="animation-delay:0ms"></div>
+          <div class="w-1.5 h-1.5 rounded-full bg-blue-400/70 animate-bounce" style="animation-delay:150ms"></div>
+          <div class="w-1.5 h-1.5 rounded-full bg-blue-400/70 animate-bounce" style="animation-delay:300ms"></div>
+        </div>
+        <span class="text-[12px] text-blue-400/80 font-medium">Processing your document …</span>
+      </div>
+    </div>
+
+    <!-- Uploaded File Indicator (shown after upload) -->
+    <div id="doc-uploaded-info" class="hidden mt-6">
+      <div class="flex items-center gap-3 p-4 rounded-xl bg-emerald-400/[0.04] border border-emerald-400/[0.1]">
+        <svg class="w-5 h-5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div class="flex-1">
+          <p id="doc-uploaded-name" class="text-[13px] text-emerald-400/90 font-semibold"></p>
+          <p id="doc-uploaded-chunks" class="text-[10px] text-gray-500 mt-0.5"></p>
+        </div>
+      </div>
+      <button onclick="switchView('doc-chat')" class="btn-primary mt-6 w-full py-3.5 rounded-xl text-navy-950 font-bold text-sm tracking-wide">
+        Start Asking Questions
+      </button>
+    </div>
+
+  </div>
+</div>

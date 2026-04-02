@@ -44,30 +44,32 @@
   <!-- Animated background -->
   <div class="bg-mesh"></div>
 
-  <!-- ── Navbar ── -->
+  <!-- Navbar -->
   {% include 'components/navbar.html' %}
 
-  <!-- ── Main Layout ── -->
+  <!-- Main Layout -->
   <div class="flex h-full pt-14 relative z-10">
 
-    <!-- ── Sidebar ── -->
+    <!-- Sidebar -->
     {% include 'components/sidebar.html' %}
 
-    <!-- ── Content Area ── -->
+    <!-- Content Area -->
     <main class="flex-1 flex flex-col overflow-hidden">
-      {% include 'components/upload.html' %}
-      {% include 'components/analyze.html' %}
-      {% include 'components/report.html' %}
+      {% include 'components/home.html' %}
+      {% include 'components/projects.html' %}
+      {% include 'components/case_workspace.html' %}
+      {% include 'components/doc_upload.html' %}
+      {% include 'components/doc_chat.html' %}
     </main>
 
   </div>
 
-  <!-- ── Scripts (loaded in order) ── -->
+  <!-- Scripts -->
   <script src="/static/js/state.js"></script>
-  <script src="/static/js/upload.js"></script>
-  <script src="/static/js/chat.js"></script>
-  <script src="/static/js/workflow.js"></script>
   <script src="/static/js/sidebar.js"></script>
+  <script src="/static/js/projects.js"></script>
+  <script src="/static/js/case_workspace.js"></script>
+  <script src="/static/js/doc_analysis.js"></script>
   <script src="/static/js/main.js"></script>
 </body>
 </html>

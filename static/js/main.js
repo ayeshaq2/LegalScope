@@ -1,16 +1,33 @@
-/*
- * ═══════════════════════════════════════════════════════
- *  MAIN.JS — App initialization & view switching
- * ═══════════════════════════════════════════════════════
- *
- *  Handles:
- *   - View switching (Upload / Analyze / Report)
- *   - App initialization on page load
- *
- *  Depends on: state.js
- *
- *  This file is loaded LAST so all other modules are ready.
- */
+/* ── Mode Selection ── */
+
+function selectMode(mode) {
+  AppState.mode = mode;
+
+  document.getElementById('nav-lawyer').classList.add('hidden');
+  document.getElementById('nav-user').classList.add('hidden');
+
+  if (mode === 'lawyer') {
+    document.getElementById('nav-lawyer').classList.remove('hidden');
+    updateSidebarMode('Case Preparation', 'gold');
+    switchView('projects');
+  } else {
+    document.getElementById('nav-user').classList.remove('hidden');
+    updateSidebarMode('Document Analysis', 'blue');
+    switchView('doc-upload');
+  }
+}
+
+function goHome() {
+  AppState.mode = null;
+  AppState.activeProject = null;
+
+  document.getElementById('nav-lawyer').classList.add('hidden');
+  document.getElementById('nav-user').classList.add('hidden');
+
+  updateSidebarMode('Welcome', 'gray');
+  hideSidebarSections();
+  switchView('home');
+}
 
 /* ── View Switching ── */
 
@@ -20,15 +37,27 @@ function switchView(view) {
     el.classList.remove('flex');
   });
 
-  const target = document.getElementById(`view-${view}`);
+  const target = document.getElementById('view-' + view);
   if (target) {
     target.classList.remove('hidden');
     target.classList.add('flex');
   }
 
+  // Update nav button highlights
   document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active-view'));
-  const btn = document.getElementById(`btn-${view}`);
-  if (btn) btn.classList.add('active-view');
+
+  const btnMap = {
+    'home': null,
+    'projects': 'btn-projects',
+    'case-workspace': 'btn-case-workspace',
+    'doc-upload': 'btn-doc-upload',
+    'doc-chat': 'btn-doc-chat',
+  };
+  const btnId = btnMap[view];
+  if (btnId) {
+    const btn = document.getElementById(btnId);
+    if (btn) btn.classList.add('active-view');
+  }
 
   AppState.currentView = view;
 }
@@ -36,5 +65,5 @@ function switchView(view) {
 /* ── Init ── */
 
 document.addEventListener('DOMContentLoaded', () => {
-  switchView('upload');
+  switchView('home');
 });

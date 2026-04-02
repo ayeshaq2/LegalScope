@@ -105,9 +105,7 @@ def build_or_load_db():
     print(f" DB created with {len(chunks)} chunks")
     return db
 
-# =========================
-# LOAD GENERATOR
-# =========================
+build_or_load_db()
 
 def load_generator():
     tokenizer = AutoTokenizer.from_pretrained(GEN_MODEL)
@@ -118,9 +116,6 @@ def load_generator():
     )
     return tokenizer, model
 
-# =========================
-# PROMPTS
-# =========================
 
 def trial_prompt(query, docs, history=""):
     context = "\n\n".join([d.page_content for d in docs])
@@ -193,10 +188,6 @@ Give a short ruling.
 """
 
 
-# =========================
-# GENERATION
-# =========================
-
 def generate(tokenizer, model, prompt):
     inputs = tokenizer(prompt, return_tensors="pt").to(DEVICE)
 
@@ -208,9 +199,6 @@ def generate(tokenizer, model, prompt):
 
     return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-# =========================
-# MAIN CLASS
-# =========================
 
 class LegalScope:
     def __init__(self):

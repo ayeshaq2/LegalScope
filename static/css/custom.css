@@ -370,3 +370,37 @@
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(201,168,76,0.3), transparent);
 }
+
+/* ── Mode Cards (home page) ── */
+.mode-card {
+  position: relative;
+  overflow: hidden;
+}
+.mode-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 120%, rgba(201,168,76,0.04), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.mode-card:hover::before {
+  opacity: 1;
+}
+
+/* ── Line clamp utility ── */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Disabled nav buttons ── */
+.view-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.view-btn:disabled:hover {
+  color: #6b7280;
+}

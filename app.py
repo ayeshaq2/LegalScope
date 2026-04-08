@@ -1,9 +1,13 @@
 import os
 import uuid
 
+import requests
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
-from rag import LegalScope
+from rag import LegalScope, compute_readability, extract_text
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -94,7 +98,10 @@ def query_project(project_id):
         return jsonify({"error": "Query is required"}), 400
 
     eng = get_engine()
-    response = eng.ask(project_id, query, mode="case")
+    try:
+        response = eng.ask(project_id, query, mode="case")
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 429
     return jsonify({"response": response})
 
 
@@ -109,7 +116,10 @@ def project_mock_trial(project_id):
         return jsonify({"error": "Argument is required"}), 400
 
     eng = get_engine()
-    result = eng.mock_trial(project_id, argument)
+    try:
+        result = eng.mock_trial(project_id, argument)
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 429
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)
@@ -138,10 +148,14 @@ def upload_document():
     store_id = "user_" + session_id
     chunks = eng.ingest_file(store_id, filepath)
 
+    text = extract_text(filepath)
+    readability = compute_readability(text) if text.strip() else None
+
     return jsonify({
         "session_id": session_id,
         "filename": filename,
         "chunks": chunks,
+        "readability": readability,
     })
 
 
@@ -156,8 +170,101 @@ def query_document():
 
     eng = get_engine()
     store_id = "user_" + session_id
-    response = eng.ask(store_id, query, mode="document")
+    try:
+        response = eng.ask(store_id, query, mode="document")
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 429
     return jsonify({"response": response})
+
+
+@app.route("/api/doc/analyze", methods=["POST"])
+def analyze_document():
+    data = request.get_json(force=True)
+    session_id = data.get("session_id", "").strip()
+
+    if not session_id:
+        return jsonify({"error": "session_id is required"}), 400
+
+    eng = get_engine()
+    store_id = "user_" + session_id
+    try:
+        result = eng.auto_analyze(store_id)
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 429
+    return jsonify(result)
+
+
+# ─── External Tool Endpoints ──────────────────────────────────
+
+@app.route("/api/tools/precedents", methods=["POST"])
+def tool_precedents():
+    data = request.get_json(force=True)
+    query = data.get("query", "").strip()
+    if not query:
+        return jsonify({"error": "query is required"}), 400
+    try:
+        resp = requests.get(
+            "https://www.courtlistener.com/api/rest/v4/search/",
+            params={"q": query, "type": "o", "order_by": "score desc"},
+            timeout=10,
+            headers={"User-Agent": "LegalScope/1.0"},
+        )
+        results = resp.json().get("results", [])[:3]
+        cases = [
+            {
+                "name": r.get("caseName", "Unknown"),
+                "court": r.get("court", ""),
+                "date": r.get("dateFiled", ""),
+                "snippet": (r.get("snippet", "") or "")[:300],
+                "url": "https://www.courtlistener.com" + (r.get("absolute_url") or ""),
+            }
+            for r in results
+        ]
+        return jsonify({"cases": cases})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tools/search", methods=["POST"])
+def tool_search():
+    api_key = os.environ.get("TAVILY_API_KEY", "")
+    if not api_key or api_key == "YOUR_TAVILY_API_KEY_HERE":
+        return jsonify({"error": "Tavily API key not configured — add TAVILY_API_KEY to your .env file"}), 400
+
+    data = request.get_json(force=True)
+    query = data.get("query", "").strip()
+    if not query:
+        return jsonify({"error": "query is required"}), 400
+
+    try:
+        from tavily import TavilyClient
+        client = TavilyClient(api_key=api_key)
+        resp = client.search(query, max_results=3)
+        return jsonify({"results": resp.get("results", [])})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tools/statutes", methods=["GET"])
+def tool_statutes():
+    api_key = os.environ.get("CONGRESS_API_KEY", "")
+    if not api_key or api_key == "YOUR_CONGRESS_API_KEY_HERE":
+        return jsonify({"error": "Congress API key not configured — add CONGRESS_API_KEY to your .env file"}), 400
+
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"error": "q param is required"}), 400
+
+    try:
+        resp = requests.get(
+            "https://api.congress.gov/v3/bill",
+            params={"query": query, "limit": 3, "api_key": api_key},
+            timeout=10,
+        )
+        bills = resp.json().get("bills", [])[:3]
+        return jsonify({"bills": bills})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

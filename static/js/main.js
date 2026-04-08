@@ -15,6 +15,9 @@ function selectMode(mode) {
     updateSidebarMode('Document Analysis', 'blue');
     switchView('doc-upload');
   }
+
+  document.getElementById('tools-toggle-btn')?.classList.remove('hidden');
+  closeToolsPanel();
 }
 
 function goHome() {
@@ -23,6 +26,9 @@ function goHome() {
 
   document.getElementById('nav-lawyer').classList.add('hidden');
   document.getElementById('nav-user').classList.add('hidden');
+
+  document.getElementById('tools-toggle-btn')?.classList.add('hidden');
+  closeToolsPanel();
 
   updateSidebarMode('Welcome', 'gray');
   hideSidebarSections();

@@ -1,10 +1,11 @@
-<div id="view-doc-chat" class="view-panel flex-1 flex-col hidden">
+<div id="view-doc-chat" class="view-panel flex-1 flex-col hidden overflow-hidden">
 
   <!-- Chat Messages -->
-  <div id="doc-chat-messages" class="flex-1 overflow-y-auto p-6 space-y-5">
-    <!-- AI Welcome -->
-    <div class="flex gap-3 max-w-3xl">
-      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex-shrink-0 flex items-center justify-center shadow-lg shadow-blue-400/10">
+  <div id="doc-chat-messages" class="flex-1 min-h-0 overflow-y-auto p-6 space-y-5">
+
+    <!-- Auto-analysis loader (shown while analysis runs, hidden after) -->
+    <div id="doc-analysis-loader" class="flex gap-3 max-w-3xl hidden">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex-shrink-0 flex items-center justify-center pulse-gold shadow-lg shadow-blue-400/10">
         <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m5.231 13.481L15 17.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v16.5c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9zm3.75 11.625a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
       </div>
       <div class="flex-1">
@@ -12,16 +13,18 @@
           <span class="text-[12px] font-bold text-white">LegalScope</span>
         </div>
         <div class="chat-bubble-ai rounded-2xl rounded-tl-md p-5">
-          <p class="text-[13px] text-gray-300 leading-relaxed">Your document has been processed. Ask me anything about it — I can explain clauses, identify risks, summarize sections, and more.</p>
-          <div class="mt-4 flex flex-wrap gap-2">
-            <button onclick="insertDocQuery('Summarize this document in simple terms')" class="suggestion-chip text-[11px] px-3.5 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06] text-gray-500 font-medium">Summarize this document</button>
-            <button onclick="insertDocQuery('What are the key risks or red flags in this document?')" class="suggestion-chip text-[11px] px-3.5 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06] text-gray-500 font-medium">Key risks?</button>
-            <button onclick="insertDocQuery('What are my main obligations under this document?')" class="suggestion-chip text-[11px] px-3.5 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06] text-gray-500 font-medium">My obligations?</button>
-            <button onclick="insertDocQuery('Are there any unusual or missing clauses?')" class="suggestion-chip text-[11px] px-3.5 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06] text-gray-500 font-medium">Missing clauses?</button>
+          <div class="flex items-center gap-3">
+            <div class="flex gap-1">
+              <div class="w-1.5 h-1.5 rounded-full bg-blue-400/70 animate-bounce" style="animation-delay:0ms"></div>
+              <div class="w-1.5 h-1.5 rounded-full bg-blue-400/70 animate-bounce" style="animation-delay:150ms"></div>
+              <div class="w-1.5 h-1.5 rounded-full bg-blue-400/70 animate-bounce" style="animation-delay:300ms"></div>
+            </div>
+            <span class="text-[11px] text-gray-500">Analyzing your document — this may take a moment …</span>
           </div>
         </div>
       </div>
     </div>
+
   </div>
 
   <!-- Chat Input -->

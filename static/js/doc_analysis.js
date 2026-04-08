@@ -60,6 +60,13 @@ async function uploadUserDoc(file) {
       if (chatBtn) chatBtn.disabled = false;
 
       showDocSidebar(data.filename);
+
+      // Push readability into tools panel immediately
+      if (data.readability) renderReadability(data.readability);
+
+      // Switch to chat and kick off auto-analysis immediately
+      switchView('doc-chat');
+      runAutoAnalysis(data.session_id);
     } else {
       alert(data.error || 'Upload failed');
     }
@@ -144,6 +151,87 @@ async function sendDocMessage() {
     if (ld) ld.remove();
     appendAiMessage(box, 'Connection error — is the server running?', 'blue', true);
   }
+}
+
+/* ── Auto Analysis ── */
+
+async function runAutoAnalysis(sessionId) {
+  const box = document.getElementById('doc-chat-messages');
+  const loader = document.getElementById('doc-analysis-loader');
+
+  // Clear any previous messages except the loader
+  Array.from(box.children).forEach(el => {
+    if (el.id !== 'doc-analysis-loader') el.remove();
+  });
+
+  loader.classList.remove('hidden');
+  box.scrollTop = box.scrollHeight;
+
+  try {
+    const res = await fetch('/api/doc/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId }),
+    });
+    const data = await res.json();
+    loader.classList.add('hidden');
+
+    const analysisText = data.analysis || data.error || 'Could not generate analysis.';
+    const suggestions = data.suggestions || [];
+    appendAutoAnalysis(box, analysisText, suggestions);
+
+    // Push glossary into tools panel
+    if (data.glossary) renderGlossary(data.glossary);
+  } catch {
+    loader.classList.add('hidden');
+    appendAiMessage(box, 'Could not run auto-analysis — is the server running?', 'blue', true);
+  }
+}
+
+function appendAutoAnalysis(container, text, suggestions = []) {
+  const fallbackChips = [
+    'Explain the termination clause in simple terms',
+    'Which red flags should I be most concerned about?',
+    'What should I negotiate or push back on?',
+    'Explain this document like I am not a lawyer',
+  ];
+  const chips = suggestions.length >= 2 ? suggestions : fallbackChips;
+
+  const msg = document.createElement('div');
+  msg.className = 'flex gap-3 max-w-3xl';
+  msg.innerHTML = `
+    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex-shrink-0 flex items-center justify-center shadow-lg shadow-blue-400/10">
+      <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m5.231 13.481L15 17.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v16.5c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9zm3.75 11.625a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
+    </div>
+    <div class="flex-1">
+      <div class="flex items-center gap-2 mb-1.5">
+        <span class="text-[12px] font-bold text-white">LegalScope</span>
+        <span class="text-[10px] text-blue-400/70 font-medium px-2 py-0.5 rounded-full bg-blue-400/10 border border-blue-400/20">Auto Analysis</span>
+      </div>
+      <div class="chat-bubble-ai rounded-2xl rounded-tl-md p-5">
+        <p class="text-[13px] text-gray-300 leading-relaxed whitespace-pre-wrap">${escapeHtml(text)}</p>
+        <div class="mt-4 pt-4 border-t border-white/[0.04]">
+          <p class="text-[10px] text-gray-600 mb-2 font-medium">Suggested questions</p>
+          <div class="chip-row flex flex-wrap gap-2"></div>
+        </div>
+      </div>
+    </div>`;
+
+  // Attach chips via DOM — avoids any HTML-attribute escaping issues
+  const chipRow = msg.querySelector('.chip-row');
+  chips.forEach(q => {
+    const btn = document.createElement('button');
+    btn.className = 'suggestion-chip text-[11px] px-3.5 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06] text-gray-500 font-medium';
+    btn.textContent = q;
+    btn.addEventListener('click', () => {
+      document.getElementById('doc-chat-input').value = q;
+      sendDocMessage();
+    });
+    chipRow.appendChild(btn);
+  });
+
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
 }
 
 // Enter to send

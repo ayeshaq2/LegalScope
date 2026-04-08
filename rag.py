@@ -1,4 +1,7 @@
+import os
+import re
 import sys
+import time
 import platform
 
 if platform.system() != "Windows":
@@ -8,10 +11,9 @@ if platform.system() != "Windows":
     except ImportError:
         pass
 
-import os
-import torch
+import requests
 from pathlib import Path
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from openai import OpenAI, RateLimitError
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
@@ -19,8 +21,42 @@ from langchain_chroma import Chroma
 UPLOAD_DIR = "./uploads"
 DB_BASE_DIR = "./project_dbs"
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-GEN_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "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")
+
+# Free models tried in order if one is rate-limited or deprecated.
+# openrouter/free is a meta-router that auto-selects from all currently available free models.
+FALLBACK_MODELS = [
+    "openrouter/free",
+    "nvidia/llama-3.1-nemotron-nano-8b-v1:free",
+    "google/gemma-3-4b-it:free",
+    "mistralai/mistral-7b-instruct:free",
+]
+
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=OPENROUTER_API_KEY,
+)
+
+
+# ─── Readability ─────────────────────────────────────────────
+
+def compute_readability(text):
+    try:
+        import textstat
+        grade = round(textstat.flesch_kincaid_grade(text), 1)
+        score = round(textstat.flesch_reading_ease(text), 1)
+        if score >= 70:
+            label, color = "Easy to read", "green"
+        elif score >= 50:
+            label, color = "Moderately complex", "yellow"
+        elif score >= 30:
+            label, color = "Difficult", "orange"
+        else:
+            label, color = "Very difficult", "red"
+        return {"grade": grade, "score": score, "label": label, "color": color}
+    except Exception:
+        return None
 
 
 # ─── Text Extraction ─────────────────────────────────────────
@@ -47,28 +83,24 @@ def extract_text(filepath):
 
 # ─── Generator ────────────────────────────────────────────────
 
-def load_generator():
-    tokenizer = AutoTokenizer.from_pretrained(GEN_MODEL)
-    model = AutoModelForCausalLM.from_pretrained(
-        GEN_MODEL,
-        device_map="auto",
-        torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32,
-    )
-    return tokenizer, model
-
-
-def generate(tokenizer, model, prompt):
-    inputs = tokenizer(
-        prompt, return_tensors="pt", truncation=True, max_length=2048
-    ).to(DEVICE)
-    input_length = inputs["input_ids"].shape[1]
-
-    outputs = model.generate(
-        **inputs, max_new_tokens=512, temperature=0.3, do_sample=True
-    )
-
-    generated_ids = outputs[0][input_length:]
-    return tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
+def generate(prompt, retries=3, backoff=5, max_tokens=512):
+    for model in FALLBACK_MODELS:
+        for attempt in range(retries):
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                    max_tokens=max_tokens,
+                )
+                return response.choices[0].message.content.strip()
+            except RateLimitError:
+                wait = backoff * (2 ** attempt)
+                print(f"  Rate limited on {model} (attempt {attempt + 1}/{retries}), waiting {wait}s …")
+                if attempt < retries - 1:
+                    time.sleep(wait)
+        print(f"  {model} exhausted, trying next fallback …")
+    raise RuntimeError("All models rate-limited. Try again in a moment.")
 
 
 # ─── Prompt Templates ────────────────────────────────────────
@@ -154,6 +186,68 @@ Evaluate both arguments and provide:
 JUDICIAL RULING:"""
 
 
+def auto_analysis_prompt(docs):
+    context = "\n\n---\n\n".join(d.page_content for d in docs)
+    return f"""You are LegalScope, a plain-language legal document assistant for everyday people (not lawyers).
+
+Analyze the following document and produce a structured report using exactly these section headings.
+Write in plain English — no jargon. Be direct and specific to this document.
+
+DOCUMENT:
+{context}
+
+Produce the report in this exact format:
+
+WHAT THIS IS
+[1-2 sentences: what type of document this is and its purpose]
+
+THE PARTIES
+[Who is involved and what role each plays]
+
+YOUR KEY OBLIGATIONS
+[Bullet list of what the non-drafting / signing party must do]
+
+RESTRICTIONS ON YOU
+[Bullet list of what you cannot do under this agreement]
+
+IMPORTANT DATES & NUMBERS
+[Bullet list of deadlines, durations, notice periods, fees, penalties, or financial figures]
+
+RED FLAGS
+[Bullet list of unusual, one-sided, or risky clauses — be specific]
+
+MISSING PROTECTIONS
+[Bullet list of standard clauses that are absent and why that matters]
+
+HOW TO EXIT
+[How either party can terminate this agreement]
+
+VERDICT
+[2-3 sentences: is this document favorable, neutral, or unfavorable for the signing party, and why]"""
+
+def suggestions_prompt(docs):
+    context = "\n\n---\n\n".join(d.page_content for d in docs)
+    return f"""You are a legal document assistant helping a non-lawyer understand a contract.
+
+Based on the document below, generate exactly 4 short follow-up questions that a non-lawyer would genuinely want to ask next.
+Make them specific to THIS document — not generic questions that apply to any contract.
+Each question should be under 10 words.
+
+DOCUMENT:
+{context}
+
+Return ONLY the 4 questions, numbered 1 to 4, one per line. No explanations, no preamble."""
+
+
+def legal_terms_prompt(docs):
+    context = "\n\n---\n\n".join(d.page_content for d in docs[:3])
+    return f"""List exactly 6 legal or technical terms from this document that a non-lawyer would not understand.
+Return ONLY the terms, one per line, no numbering, no explanations, no punctuation.
+
+DOCUMENT:
+{context}"""
+
+
 # ─── Per-Project Document Store ──────────────────────────────
 
 class DocumentStore:
@@ -195,12 +289,10 @@ class LegalScope:
         print("Initializing LegalScope engine …")
         self.embeddings = HuggingFaceEmbeddings(
             model_name=EMBED_MODEL,
-            model_kwargs={"device": DEVICE},
+            model_kwargs={"device": "cpu"},
         )
         print("  Embedding model loaded.")
-
-        self.tokenizer, self.model = load_generator()
-        print("  Generator model loaded.")
+        print(f"  Generator: OpenRouter ({FALLBACK_MODELS[0]})")
 
         self.stores = {}
         self.history = {}
@@ -218,6 +310,51 @@ class LegalScope:
         store = self.get_or_create_store(store_id)
         return store.add_text(text, source_name=os.path.basename(filepath))
 
+    def auto_analyze(self, store_id):
+        store = self.get_or_create_store(store_id)
+        docs = store.query("parties obligations restrictions termination fees penalties")
+        if not docs:
+            return {"analysis": "No document content found. Please upload a document first.", "suggestions": [], "glossary": []}
+
+        analysis = generate(auto_analysis_prompt(docs), max_tokens=1024)
+        suggestions = self._suggest_questions(docs)
+        glossary = self._fetch_glossary(docs)
+        return {"analysis": analysis, "suggestions": suggestions, "glossary": glossary}
+
+    def _suggest_questions(self, docs):
+        try:
+            raw = generate(suggestions_prompt(docs), max_tokens=200)
+            lines = [l.strip() for l in raw.splitlines() if l.strip()]
+            questions = [re.sub(r'^[\d]+[\.\)]\s*', '', l) for l in lines if l]
+            return [q for q in questions if len(q) > 5][:4]
+        except Exception:
+            return []
+
+    def _fetch_glossary(self, docs):
+        try:
+            raw = generate(legal_terms_prompt(docs), max_tokens=120)
+            terms = [t.strip().strip('.,;') for t in raw.splitlines() if t.strip()][:6]
+        except Exception:
+            return []
+
+        glossary = []
+        for term in terms:
+            try:
+                url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{requests.utils.quote(term)}"
+                resp = requests.get(url, timeout=5, headers={"User-Agent": "LegalScope/1.0"})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    extract = data.get("extract", "")
+                    if extract:
+                        sentences = extract.split('. ')
+                        definition = '. '.join(sentences[:2]).strip()
+                        if not definition.endswith('.'):
+                            definition += '.'
+                        glossary.append({"term": term, "definition": definition})
+            except Exception:
+                pass
+        return glossary
+
     def ask(self, store_id, query, mode="case"):
         store = self.get_or_create_store(store_id)
         docs = store.query(query)
@@ -233,7 +370,7 @@ class LegalScope:
         else:
             prompt = document_qa_prompt(query, docs)
 
-        response = generate(self.tokenizer, self.model, prompt)
+        response = generate(prompt)
 
         if store_id not in self.history:
             self.history[store_id] = []
@@ -248,14 +385,8 @@ class LegalScope:
         if not docs:
             return {"error": "No case documents found. Upload documents first."}
 
-        defense = generate(
-            self.tokenizer, self.model,
-            opposing_counsel_prompt(user_argument, docs),
-        )
-        ruling = generate(
-            self.tokenizer, self.model,
-            judge_prompt(user_argument, defense),
-        )
+        defense = generate(opposing_counsel_prompt(user_argument, docs))
+        ruling = generate(judge_prompt(user_argument, defense))
 
         return {
             "plaintiff": user_argument,

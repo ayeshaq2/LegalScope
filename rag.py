@@ -22,7 +22,7 @@ UPLOAD_DIR = "./uploads"
 DB_BASE_DIR = "./project_dbs"
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "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")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 # Free models tried in order if one is rate-limited or deprecated.
 # openrouter/free is a meta-router that auto-selects from all currently available free models.

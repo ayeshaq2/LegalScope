@@ -1,6 +1,5 @@
 import io
 import os
-import io
 import uuid
 
 import requests
@@ -14,7 +13,6 @@ from flask import Flask, render_template, request, jsonify, redirect, session, s
 from werkzeug.utils import secure_filename
 from rag import LegalScope, compute_readability, extract_text
 
-from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient import http as google_http
 from google.oauth2.credentials import Credentials
@@ -30,18 +28,7 @@ GOOGLE_REDIRECT_URI  = "http://localhost:5000/auth/google/callback"
 GOOGLE_SCOPES        = ["https://www.googleapis.com/auth/drive.readonly"]
 
 
-def _google_flow():
-    return Flow.from_client_config(
-        {"web": {
-            "client_id": GOOGLE_CLIENT_ID,
-            "client_secret": GOOGLE_CLIENT_SECRET,
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": [GOOGLE_REDIRECT_URI],
-        }},
-        scopes=GOOGLE_SCOPES,
-        redirect_uri=GOOGLE_REDIRECT_URI,
-    )
+GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 UPLOAD_DIR = "./uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -287,30 +274,49 @@ def analyze_document():
 
 # ─── Google Drive Auth ────────────────────────────────────────
 
+
 @app.route("/auth/google")
 def auth_google():
-    flow = _google_flow()
-    auth_url, state = flow.authorization_url(
-        access_type="offline",
-        include_granted_scopes="true",
-        prompt="consent",
-    )
+    from urllib.parse import urlencode
+    state = str(uuid.uuid4())
     session["google_oauth_state"] = state
+    params = {
+        "client_id":     GOOGLE_CLIENT_ID,
+        "redirect_uri":  GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope":         " ".join(GOOGLE_SCOPES),
+        "access_type":   "offline",
+        "prompt":        "consent",
+        "state":         state,
+    }
+    auth_url = "https://accounts.google.com/o/oauth2/auth?" + urlencode(params)
     return redirect(auth_url)
 
 
 @app.route("/auth/google/callback")
 def auth_google_callback():
-    flow = _google_flow()
-    flow.fetch_token(authorization_response=request.url)
-    creds = flow.credentials
+    code = request.args.get("code")
+    if not code:
+        return "Authorization failed — no code returned by Google", 400
+
+    token_resp = requests.post(GOOGLE_TOKEN_URI, data={
+        "code":          code,
+        "client_id":     GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri":  GOOGLE_REDIRECT_URI,
+        "grant_type":    "authorization_code",
+    })
+    if token_resp.status_code != 200:
+        return f"Token exchange failed: {token_resp.text}", 400
+
+    tokens = token_resp.json()
     session["google_token"] = {
-        "token":          creds.token,
-        "refresh_token":  creds.refresh_token,
-        "token_uri":      creds.token_uri,
-        "client_id":      creds.client_id,
-        "client_secret":  creds.client_secret,
-        "scopes":         list(creds.scopes) if creds.scopes else [],
+        "token":          tokens["access_token"],
+        "refresh_token":  tokens.get("refresh_token"),
+        "token_uri":      GOOGLE_TOKEN_URI,
+        "client_id":      GOOGLE_CLIENT_ID,
+        "client_secret":  GOOGLE_CLIENT_SECRET,
+        "scopes":         GOOGLE_SCOPES,
     }
     return redirect("/?drive=ready")
 

@@ -1,0 +1,105 @@
+SE4471 Course Project – Assignment 3
+Final System, Reliability Report, and Showcase Demo
+Total Weight: 20%
+Date: April 9 (during scheduled lab)
+Format: In-person team presentation + final submission
+Purpose
+Phase 3 represents the completion of your EventOps AI application.
+Teams will submit their final system, a reliability and evaluation report, and present a live demonstration.
+This phase evaluates:
+the quality and completeness of your system,
+your ability to communicate design and workflow, and
+your understanding of reliability and system limitations
+Final Deliverable Components
+Deliverable 3 consists of three graded components:
+1. Product (Application) — 10%
+Fully implemented EventOps AI system
+Includes:
+RAG pipeline
+multi-step workflow
+context/state tracking
+structured output artifact
+2. Demo (Presentation) — 5%
+5–7 minute in-lab presentation
+Demonstration of workflow, system behavior, and outputs
+3. Report (Reliability and Evaluation) — 5%
+Testing strategy
+Failure cases and limitations
+Prompt/workflow design decisions
+Evidence of retrieval grounding
+Note: The report is graded independently and is not bounded by implementation tier.
+Implementation Tiers (Grade Boundaries)
+The Product and Demo components (15%) are evaluated within the tier your system achieves.
+Tier 1 – Foundation System (≈ mid-70% range)
+Working RAG over event corpus
+Basic multi-step workflow
+Initial context/state tracking
+Partial or developing structured artifact
+Tier 2 – Tool-Enabled System (≈ mid-80% range)
+Includes Tier 1 plus:
+Integration of at least one external tool or API
+Tool usage meaningfully embedded in workflow
+Stronger end-to-end execution
+Tier 3 – Advanced System (90%+ range)
+Includes Tier 2 plus one or more:
+Multi-tool orchestration
+Advanced workflow design
+MCP-based architecture or extensions
+Optimization (latency, cost, retrieval scaling)
+Additional engineering depth beyond baseline
+Important Note on Tier-Based Grading
+Product and Demo grades are bounded by the implementation tier achieved
+Report grade is independent of tier
+Showcase Demo (April 9)
+Each team will deliver a 5–7 minute presentation.
+Important
+The presentation will be used to assess all components of Deliverable 3.
+Teams are expected to clearly demonstrate:
+the functionality of the product
+the design and workflow of the system
+the quality and relevance of outputs
+the creativity and real-world value of the application
+Presentation Structure
+1. Application Motivation
+Problem being solved
+Why it is relevant and valuable
+2. System Overview
+RAG pipeline
+workflow/agent logic
+memory/state tracking
+structured outputs
+3. Workflow and AI Interaction
+End-to-end interaction example
+Decision-making and system flow
+4. Demonstration
+Live demo or short recording (if needed)
+At least one complete workflow
+Demo Guidelines
+Keep demonstrations focused and efficient
+Avoid long setup or delays
+Ensure a clear, complete example is shown
+Recordings should support—not replace—your explanation
+Slides are encouraged to support y our presentation.
+Attendance Requirement
+Attendance is mandatory during the lab
+Participation in your team’s presentation is required, failure to attend without approval could result in a
+grade of 0 for the demo.
+Teams must be present to be eligible for voting and recognition
+Peer Voting and Recognition
+Students will vote based on:
+usefulness and value
+creativity
+technical execution
+overall effectiveness
+The top-ranked team will receive a small prize
+Expectations
+Strong projects will:
+clearly demonstrate a complete and functional system
+communicate design decisions and workflow effectively
+show grounded, structured outputs
+highlight creativity and impact
+deliver a clear and engaging presentation within time constraints
+Note
+Deliverable 3 is the culmination of your project.
+Your presentation is a key component of evaluation and should reflect both the depth of your
+implementation and your understanding of the system.

@@ -228,6 +228,73 @@ async function searchStatutes() {
 }
 
 
+/* ── Translation (LLM) ── */
+
+async function translateDocument(prefix) {
+  const langSelect = document.getElementById(prefix + '-translate-lang');
+  const textInput = document.getElementById(prefix + '-translate-input');
+  const resultsEl = document.getElementById(prefix + '-translate-results');
+
+  const language = langSelect?.value;
+  const text = textInput?.value.trim();
+
+  if (!language) {
+    resultsEl.innerHTML = toolError('Please select a target language.');
+    return;
+  }
+
+  resultsEl.innerHTML = toolLoader('Translating to ' + language + ' …');
+
+  const body = { language };
+  if (text) {
+    body.text = text;
+  } else if (AppState.userSessionId && prefix === 'doc') {
+    body.session_id = AppState.userSessionId;
+  } else if (!text) {
+    resultsEl.innerHTML = toolError('Enter text to translate, or upload a document first.');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/tools/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      resultsEl.innerHTML = toolError(data.error || 'Translation failed.');
+      return;
+    }
+
+    resultsEl.innerHTML = `
+      <div class="bg-white/[0.02] border border-white/[0.04] rounded-lg p-3 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">${escapeHtml(data.language)}</span>
+          <button onclick="copyTranslation('${prefix}')" class="text-[10px] text-gray-600 hover:text-gray-300 transition-colors">Copy</button>
+        </div>
+        <p id="${prefix}-translated-text" class="text-[11px] text-gray-300 leading-relaxed whitespace-pre-wrap">${escapeHtml(data.translated)}</p>
+      </div>`;
+  } catch {
+    resultsEl.innerHTML = toolError('Connection error.');
+  }
+}
+
+function copyTranslation(prefix) {
+  const el = document.getElementById(prefix + '-translated-text');
+  if (el) {
+    navigator.clipboard.writeText(el.textContent).then(() => {
+      const btn = el.closest('.space-y-2')?.querySelector('button');
+      if (btn) {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      }
+    });
+  }
+}
+
+
 /* ── Helpers ── */
 
 function toolLoader(msg) {

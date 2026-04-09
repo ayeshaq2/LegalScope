@@ -2,6 +2,119 @@
  *  DOC_ANALYSIS.JS — User mode: document upload + chat
  * ═══════════════════════════════════════════════════════ */
 
+/* ── Google Drive Picker ── */
+
+let _driveApiKey = null;
+let _driveAccessToken = null;
+let _pickerApiLoaded = false;
+
+// On page load, check if we just returned from Google OAuth
+window.addEventListener('DOMContentLoaded', async () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('drive') === 'ready') {
+    // Clean URL then open picker now that we're authenticated
+    history.replaceState({}, '', '/');
+    await _loadDriveStatus();
+    _openPicker();
+  } else {
+    await _loadDriveStatus();
+  }
+});
+
+async function _loadDriveStatus() {
+  try {
+    const res = await fetch('/auth/google/status');
+    const data = await res.json();
+    _driveApiKey = data.api_key;
+    if (data.authenticated) {
+      _driveAccessToken = data.access_token;
+      const badge = document.getElementById('drive-auth-badge');
+      if (badge) badge.classList.remove('hidden');
+    }
+  } catch { /* ignore */ }
+}
+
+async function openGoogleDrivePicker() {
+  // If not authenticated yet, redirect to Google OAuth
+  if (!_driveAccessToken) {
+    window.location.href = '/auth/google';
+    return;
+  }
+  _openPicker();
+}
+
+function _openPicker() {
+  if (!_pickerApiLoaded) {
+    gapi.load('picker', { callback: () => { _pickerApiLoaded = true; _buildPicker(); } });
+  } else {
+    _buildPicker();
+  }
+}
+
+function _buildPicker() {
+  const view = new google.picker.DocsView()
+    .setIncludeFolders(false)
+    .setMimeTypes('application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.google-apps.document');
+
+  const picker = new google.picker.PickerBuilder()
+    .setTitle('Select a document to analyze')
+    .setOAuthToken(_driveAccessToken)
+    .setDeveloperKey(_driveApiKey)
+    .addView(view)
+    .setCallback(_onPickerSelected)
+    .build();
+
+  picker.setVisible(true);
+}
+
+async function _onPickerSelected(data) {
+  if (data[google.picker.Response.ACTION] !== google.picker.Action.PICKED) return;
+
+  const file     = data[google.picker.Response.DOCUMENTS][0];
+  const fileId   = file[google.picker.Document.ID];
+  const fileName = file[google.picker.Document.NAME];
+  const mimeType = file[google.picker.Document.MIME_TYPE];
+
+  const progress = document.getElementById('drive-import-progress');
+  const info     = document.getElementById('doc-uploaded-info');
+  if (progress) progress.classList.remove('hidden');
+  if (info)     info.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/doc/import-drive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_id: fileId, file_name: fileName, mime_type: mimeType }),
+    });
+    const driveData = await res.json();
+
+    if (progress) progress.classList.add('hidden');
+
+    if (res.ok) {
+      AppState.userSessionId   = driveData.session_id;
+      AppState.uploadedDocName = driveData.filename;
+
+      document.getElementById('doc-uploaded-name').textContent   = driveData.filename;
+      document.getElementById('doc-uploaded-chunks').textContent = `Processed into ${driveData.chunks} searchable sections`;
+      if (info) info.classList.remove('hidden');
+
+      const chatBtn = document.getElementById('btn-doc-chat');
+      if (chatBtn) chatBtn.disabled = false;
+
+      showDocSidebar(driveData.filename);
+      if (driveData.readability) renderReadability(driveData.readability);
+
+      switchView('doc-chat');
+      runAutoAnalysis(driveData.session_id);
+    } else {
+      alert(driveData.error || 'Import failed.');
+    }
+  } catch {
+    if (progress) progress.classList.add('hidden');
+    alert('Connection error — is the server running?');
+  }
+}
+
 /* ── File Upload ── */
 
 const docDropZone = document.getElementById('doc-drop-zone');
@@ -217,7 +330,7 @@ function appendAutoAnalysis(container, text, suggestions = []) {
         <span class="text-[10px] text-blue-400/70 font-medium px-2 py-0.5 rounded-full bg-blue-400/10 border border-blue-400/20">Auto Analysis</span>
       </div>
       <div class="chat-bubble-ai rounded-2xl rounded-tl-md p-5">
-        <p class="text-[13px] text-gray-300 leading-relaxed whitespace-pre-wrap">${escapeHtml(text)}</p>
+        <p class="text-[13px] text-gray-300 leading-relaxed whitespace-pre-wrap">${formatMarkdown(text)}</p>
         <div class="mt-4 pt-4 border-t border-white/[0.04]">
           <p class="text-[10px] text-gray-600 mb-2 font-medium">Suggested questions</p>
           <div class="chip-row flex flex-wrap gap-2"></div>
@@ -241,6 +354,97 @@ function appendAutoAnalysis(container, text, suggestions = []) {
   container.appendChild(msg);
   container.scrollTop = container.scrollHeight;
 }
+
+/* ── Translation in Chat ── */
+
+function appendTranslationToChat(translatedText, language) {
+  const box = document.getElementById('doc-chat-messages');
+  if (!box) return;
+
+  AppState.lastTranslation = translatedText;
+  AppState.lastTranslationLang = language;
+
+  const msg = document.createElement('div');
+  msg.className = 'flex gap-3 max-w-3xl';
+  msg.innerHTML = `
+    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 flex-shrink-0 flex items-center justify-center shadow-lg shadow-blue-400/10">
+      <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m10.5 21 5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 0 1 6-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.785.147 2.666.257m-4.589 8.495a18.023 18.023 0 0 1-3.827-5.802"/></svg>
+    </div>
+    <div class="flex-1">
+      <div class="flex items-center gap-2 mb-1.5">
+        <span class="text-[12px] font-bold text-white">LegalScope</span>
+        <span class="text-[10px] text-blue-400/70 font-medium px-2 py-0.5 rounded-full bg-blue-400/10 border border-blue-400/20">${escapeHtml(language)} Translation</span>
+      </div>
+      <div class="chat-bubble-ai rounded-2xl rounded-tl-md p-5">
+        <p class="text-[13px] text-gray-300 leading-relaxed whitespace-pre-wrap">${escapeHtml(translatedText)}</p>
+        <div class="mt-4 pt-3 border-t border-white/[0.04] flex items-center gap-2">
+          <button onclick="exportTranslationPDF()"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/20 text-blue-400 text-[11px] font-semibold hover:bg-blue-500/30 transition-all">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+            </svg>
+            Download PDF
+          </button>
+          <button onclick="copyTranslationFromChat(this)"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-gray-500 text-[11px] font-medium hover:text-gray-300 transition-all">
+            Copy
+          </button>
+        </div>
+      </div>
+    </div>`;
+
+  box.appendChild(msg);
+  box.scrollTop = box.scrollHeight;
+}
+
+function copyTranslationFromChat(btn) {
+  if (AppState.lastTranslation) {
+    navigator.clipboard.writeText(AppState.lastTranslation).then(() => {
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+    });
+  }
+}
+
+async function exportTranslationPDF() {
+  const text = AppState.lastTranslation;
+  const lang = AppState.lastTranslationLang || 'Translation';
+  if (!text) {
+    alert('No translation available.');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/doc/report/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        analysis: text,
+        filename: (AppState.uploadedDocName || 'document') + ` (${lang})`,
+        readability: null,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || 'Failed to generate PDF');
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (AppState.uploadedDocName || 'document').replace(/\.[^.]+$/, '') + `_${lang}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    alert('Connection error — could not generate PDF.');
+  }
+}
+
 
 /* ── Export PDF ── */
 

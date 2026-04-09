@@ -14,3 +14,11 @@ function escapeHtml(text) {
   d.textContent = text;
   return d.innerHTML;
 }
+
+function formatMarkdown(text) {
+  let s = escapeHtml(text);
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong class="text-gray-100 font-semibold">$1</strong>');
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  s = s.replace(/^(\d+)\.\s+/gm, '<span class="text-gray-500 mr-1">$1.</span> ');
+  return s;
+}

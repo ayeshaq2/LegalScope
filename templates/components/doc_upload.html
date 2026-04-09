@@ -27,6 +27,40 @@
       </div>
     </div>
 
+    <!-- Import Divider -->
+    <div class="flex items-center gap-3 mt-5">
+      <div class="flex-1 h-px bg-white/[0.05]"></div>
+      <span class="text-[10px] text-gray-600 font-medium uppercase tracking-widest">or import from</span>
+      <div class="flex-1 h-px bg-white/[0.05]"></div>
+    </div>
+
+    <!-- Google Drive Button -->
+    <button id="btn-drive-import" onclick="openGoogleDrivePicker()" class="mt-4 w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.05] hover:border-white/[0.1] transition-all group">
+      <!-- Google Drive SVG logo -->
+      <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+        <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+        <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+        <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+        <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+        <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+        <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+      </svg>
+      <span class="text-[13px] font-semibold text-gray-300 group-hover:text-white transition-colors">Import from Google Drive</span>
+      <span id="drive-auth-badge" class="hidden text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-400/20 text-emerald-400 border border-emerald-400/20">Connected</span>
+    </button>
+
+    <!-- Drive Import Progress -->
+    <div id="drive-import-progress" class="hidden mt-4">
+      <div class="flex items-center gap-3 p-4 rounded-xl bg-blue-400/[0.04] border border-blue-400/[0.1]">
+        <div class="flex gap-1">
+          <div class="w-1.5 h-1.5 rounded-full bg-blue-400/70 animate-bounce" style="animation-delay:0ms"></div>
+          <div class="w-1.5 h-1.5 rounded-full bg-blue-400/70 animate-bounce" style="animation-delay:150ms"></div>
+          <div class="w-1.5 h-1.5 rounded-full bg-blue-400/70 animate-bounce" style="animation-delay:300ms"></div>
+        </div>
+        <span class="text-[12px] text-blue-400/80 font-medium">Importing from Google Drive …</span>
+      </div>
+    </div>
+
     <!-- Upload Progress -->
     <div id="doc-upload-progress" class="hidden mt-6">
       <div class="flex items-center gap-3 p-4 rounded-xl bg-blue-400/[0.04] border border-blue-400/[0.1]">

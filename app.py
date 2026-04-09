@@ -6,13 +6,29 @@ import requests
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, render_template, request, jsonify, send_file
+# Allow OAuth over HTTP for local development
+os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
+
+from flask import Flask, render_template, request, jsonify, redirect, session, send_file
 from werkzeug.utils import secure_filename
-from rag import LegalScope, compute_readability, extract_text
+from rag import LegalScope, compute_readability, extract_text, translation_prompt, generate
+
+from googleapiclient.discovery import build
+from googleapiclient import http as google_http
+from google.oauth2.credentials import Credentials
 from report_generator import generate_pdf, generate_case_report_pdf, generate_trial_report_pdf
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get("FLASK_SECRET", os.urandom(24))
+
+GOOGLE_CLIENT_ID     = os.environ.get("CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "")
+GOOGLE_API_KEY       = os.environ.get("GOOGLE_API_KEY", "")
+GOOGLE_REDIRECT_URI  = "http://localhost:5000/auth/google/callback"
+GOOGLE_SCOPES        = ["https://www.googleapis.com/auth/drive.readonly"]
+
+
+GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 UPLOAD_DIR = "./uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -101,10 +117,10 @@ def query_project(project_id):
 
     eng = get_engine()
     try:
-        response = eng.ask(project_id, query, mode="case")
+        result = eng.ask(project_id, query, mode="case")
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 429
-    return jsonify({"response": response})
+    return jsonify({"response": result["response"], "suggestions": result.get("suggestions", [])})
 
 
 @app.route("/api/projects/<project_id>/mock_trial", methods=["POST"])
@@ -114,12 +130,15 @@ def project_mock_trial(project_id):
 
     data = request.get_json(force=True)
     argument = data.get("argument", "").strip()
+    phase = data.get("phase", "opening").strip()
+    history = data.get("history", [])
+
     if not argument:
         return jsonify({"error": "Argument is required"}), 400
 
     eng = get_engine()
     try:
-        result = eng.mock_trial(project_id, argument)
+        result = eng.mock_trial(project_id, argument, phase=phase, history=history)
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 429
     if "error" in result:
@@ -161,20 +180,18 @@ def export_trial_report(project_id):
         return jsonify({"error": "Project not found"}), 404
 
     data = request.get_json(force=True)
-    plaintiff = data.get("plaintiff", "").strip()
-    defense = data.get("defense", "").strip()
-    ruling = data.get("ruling", "").strip()
+    history = data.get("history", [])
+    coaching = data.get("coaching", None)
 
-    if not plaintiff or not defense or not ruling:
+    if not history:
         return jsonify({"error": "Missing trial data"}), 400
 
     project = projects[project_id]
     try:
         pdf_bytes = generate_trial_report_pdf(
             case_name=project.get("name", "Case"),
-            plaintiff=plaintiff,
-            defense=defense,
-            ruling=ruling,
+            history=history,
+            coaching=coaching,
         )
         safe_name = secure_filename(project.get("name", "case")) or "case"
         return send_file(
@@ -233,10 +250,10 @@ def query_document():
     eng = get_engine()
     store_id = "user_" + session_id
     try:
-        response = eng.ask(store_id, query, mode="document")
+        result = eng.ask(store_id, query, mode="document")
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 429
-    return jsonify({"response": response})
+    return jsonify({"response": result["response"]})
 
 
 @app.route("/api/doc/analyze", methods=["POST"])
@@ -254,6 +271,192 @@ def analyze_document():
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 429
     return jsonify(result)
+
+
+# ─── Google Drive Auth ────────────────────────────────────────
+
+
+@app.route("/auth/google")
+def auth_google():
+    from urllib.parse import urlencode
+    state = str(uuid.uuid4())
+    session["google_oauth_state"] = state
+    params = {
+        "client_id":     GOOGLE_CLIENT_ID,
+        "redirect_uri":  GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope":         " ".join(GOOGLE_SCOPES),
+        "access_type":   "offline",
+        "prompt":        "consent",
+        "state":         state,
+    }
+    auth_url = "https://accounts.google.com/o/oauth2/auth?" + urlencode(params)
+    return redirect(auth_url)
+
+
+@app.route("/auth/google/callback")
+def auth_google_callback():
+    code = request.args.get("code")
+    if not code:
+        return "Authorization failed — no code returned by Google", 400
+
+    token_resp = requests.post(GOOGLE_TOKEN_URI, data={
+        "code":          code,
+        "client_id":     GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri":  GOOGLE_REDIRECT_URI,
+        "grant_type":    "authorization_code",
+    })
+    if token_resp.status_code != 200:
+        return f"Token exchange failed: {token_resp.text}", 400
+
+    tokens = token_resp.json()
+    session["google_token"] = {
+        "token":          tokens["access_token"],
+        "refresh_token":  tokens.get("refresh_token"),
+        "token_uri":      GOOGLE_TOKEN_URI,
+        "client_id":      GOOGLE_CLIENT_ID,
+        "client_secret":  GOOGLE_CLIENT_SECRET,
+        "scopes":         GOOGLE_SCOPES,
+    }
+    return redirect("/?drive=ready")
+
+
+@app.route("/auth/google/status")
+def auth_google_status():
+    token = session.get("google_token")
+    return jsonify({
+        "authenticated": token is not None,
+        "access_token":  token["token"] if token else None,
+        "api_key":       GOOGLE_API_KEY,
+    })
+
+
+@app.route("/auth/google/logout", methods=["POST"])
+def auth_google_logout():
+    session.pop("google_token", None)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/doc/import-drive", methods=["POST"])
+def import_drive_file():
+    token_data = session.get("google_token")
+    if not token_data:
+        return jsonify({"error": "Not authenticated with Google Drive"}), 401
+
+    data      = request.get_json(force=True)
+    file_id   = data.get("file_id", "").strip()
+    file_name = data.get("file_name", "document").strip()
+    mime_type = data.get("mime_type", "")
+
+    if not file_id:
+        return jsonify({"error": "file_id is required"}), 400
+
+    try:
+        creds = Credentials(
+            token=token_data["token"],
+            refresh_token=token_data.get("refresh_token"),
+            token_uri=token_data["token_uri"],
+            client_id=token_data["client_id"],
+            client_secret=token_data["client_secret"],
+            scopes=token_data.get("scopes"),
+        )
+        service = build("drive", "v3", credentials=creds)
+
+        # Google Docs/Sheets/Slides must be exported as PDF
+        if "google-apps" in mime_type:
+            req = service.files().export_media(fileId=file_id, mimeType="application/pdf")
+            file_name = file_name.rsplit(".", 1)[0] + ".pdf"
+        else:
+            req = service.files().get_media(fileId=file_id)
+
+        buf = io.BytesIO()
+        downloader = google_http.MediaIoBaseDownload(buf, req)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+
+        session_id  = str(uuid.uuid4())[:8]
+        session_dir = os.path.join(UPLOAD_DIR, "user_" + session_id)
+        os.makedirs(session_dir, exist_ok=True)
+
+        safe_name = secure_filename(file_name) or "document.pdf"
+        filepath  = os.path.join(session_dir, safe_name)
+        with open(filepath, "wb") as f:
+            f.write(buf.getvalue())
+
+        eng      = get_engine()
+        store_id = "user_" + session_id
+        chunks   = eng.ingest_file(store_id, filepath)
+        text     = extract_text(filepath)
+        readability = compute_readability(text) if text.strip() else None
+
+        return jsonify({
+            "session_id":   session_id,
+            "filename":     safe_name,
+            "chunks":       chunks,
+            "readability":  readability,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/projects/<project_id>/import-drive", methods=["POST"])
+def import_drive_to_project(project_id):
+    if project_id not in projects:
+        return jsonify({"error": "Project not found"}), 404
+
+    token_data = session.get("google_token")
+    if not token_data:
+        return jsonify({"error": "Not authenticated with Google Drive"}), 401
+
+    data      = request.get_json(force=True)
+    file_id   = data.get("file_id", "").strip()
+    file_name = data.get("file_name", "document").strip()
+    mime_type = data.get("mime_type", "")
+
+    if not file_id:
+        return jsonify({"error": "file_id is required"}), 400
+
+    try:
+        creds = Credentials(
+            token=token_data["token"],
+            refresh_token=token_data.get("refresh_token"),
+            token_uri=token_data["token_uri"],
+            client_id=token_data["client_id"],
+            client_secret=token_data["client_secret"],
+            scopes=token_data.get("scopes"),
+        )
+        service = build("drive", "v3", credentials=creds)
+
+        if "google-apps" in mime_type:
+            req = service.files().export_media(fileId=file_id, mimeType="application/pdf")
+            file_name = file_name.rsplit(".", 1)[0] + ".pdf"
+        else:
+            req = service.files().get_media(fileId=file_id)
+
+        buf = io.BytesIO()
+        downloader = google_http.MediaIoBaseDownload(buf, req)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+
+        project_dir = os.path.join(UPLOAD_DIR, project_id)
+        os.makedirs(project_dir, exist_ok=True)
+
+        safe_name = secure_filename(file_name) or "document.pdf"
+        filepath  = os.path.join(project_dir, safe_name)
+        with open(filepath, "wb") as f:
+            f.write(buf.getvalue())
+
+        eng    = get_engine()
+        chunks = eng.ingest_file(project_id, filepath)
+        file_info = {"name": safe_name, "chunks": chunks}
+        projects[project_id]["files"].append(file_info)
+
+        return jsonify({"file": file_info, "project": projects[project_id]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ─── Report Export ────────────────────────────────────────────
@@ -352,6 +555,76 @@ def tool_statutes():
         return jsonify({"bills": bills})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tools/regulations", methods=["GET"])
+def tool_regulations():
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"error": "q param is required"}), 400
+
+    try:
+        resp = requests.get(
+            "https://www.federalregister.gov/api/v1/documents.json",
+            params={
+                "conditions[term]": query,
+                "per_page": 5,
+                "order": "relevance",
+                "fields[]": ["title", "abstract", "document_number",
+                             "html_url", "publication_date", "type",
+                             "agencies"],
+            },
+            timeout=10,
+        )
+        data = resp.json()
+        results = []
+        for doc in data.get("results", [])[:5]:
+            agencies = ", ".join(
+                a.get("name", "") for a in (doc.get("agencies") or [])
+            ) or "Unknown Agency"
+            results.append({
+                "title": doc.get("title", "Untitled"),
+                "url": doc.get("html_url", ""),
+                "date": doc.get("publication_date", ""),
+                "type": doc.get("type", ""),
+                "agency": agencies,
+                "abstract": (doc.get("abstract") or "")[:250],
+            })
+        return jsonify({"regulations": results})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tools/translate", methods=["POST"])
+def tool_translate():
+    data = request.get_json(force=True)
+    text = data.get("text", "").strip()
+    target_language = data.get("language", "").strip()
+    session_id = data.get("session_id", "").strip()
+
+    if not target_language:
+        return jsonify({"error": "Target language is required"}), 400
+
+    if not text and session_id:
+        eng = get_engine()
+        store_id = "user_" + session_id
+        store = eng.get_or_create_store(store_id)
+        docs = store.query("full document content summary overview")
+        if docs:
+            text = "\n\n".join(d.page_content for d in docs[:4])
+
+    if not text:
+        return jsonify({"error": "No text provided and no document found to translate"}), 400
+
+    if len(text) > 8000:
+        text = text[:8000]
+
+    try:
+        prompt = translation_prompt(text, target_language)
+        translated = generate(prompt, max_tokens=1024)
+        return jsonify({"translated": translated, "language": target_language})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 429
 
 
 if __name__ == "__main__":

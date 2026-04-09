@@ -389,8 +389,9 @@ def generate_case_report_pdf(case_name, messages, files=None):
 
 # ─── Mock Trial Report ────────────────────────────────────────
 
-def generate_trial_report_pdf(case_name, plaintiff, defense, ruling):
-    """Generate a PDF from a mock trial simulation."""
+def generate_trial_report_pdf(case_name, history=None, coaching=None,
+                              plaintiff=None, defense=None, ruling=None):
+    """Generate a PDF from a multi-round mock trial simulation."""
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=letter,
@@ -399,43 +400,110 @@ def generate_trial_report_pdf(case_name, plaintiff, defense, ruling):
     )
 
     styles = _build_styles()
+    styles.add(ParagraphStyle(
+        "CoachLabel",
+        parent=styles["Normal"],
+        fontSize=9, leading=12,
+        textColor=GOLD_ACCENT,
+        fontName="Helvetica-Bold",
+        spaceBefore=10, spaceAfter=4,
+    ))
 
     PLAINTIFF_COLOR = colors.HexColor("#2563eb")
     DEFENSE_COLOR = colors.HexColor("#dc2626")
 
-    story = []
+    PHASE_TITLES = {
+        "opening": "Opening Argument",
+        "rebuttal": "Rebuttal",
+        "closing": "Closing Statement",
+    }
+    ROLE_CONFIG = {
+        "plaintiff": ("Plaintiff", PLAINTIFF_COLOR),
+        "defense": ("Opposing Counsel", DEFENSE_COLOR),
+        "judge": ("Judicial Ruling", GOLD_ACCENT),
+    }
 
+    story = []
     story.append(_build_header(styles, doc.width, "Mock Trial Report"))
     story.append(Spacer(1, 12))
-
     story.append(Paragraph(case_name, styles["ReportTitle"]))
-    story.append(Paragraph(
-        f"Generated {datetime.now().strftime('%B %d, %Y at %I:%M %p')}",
-        styles["ReportSubtitle"],
-    ))
 
-    # Plaintiff
-    plaintiff_heading = ParagraphStyle("PlaintiffH", parent=styles["SectionHeading"], textColor=PLAINTIFF_COLOR)
-    story.append(Paragraph("Plaintiff's Argument", plaintiff_heading))
-    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e5e7eb"), spaceAfter=8))
-    story.extend(_render_body_text(plaintiff, styles))
-    story.append(Spacer(1, 8))
+    rounds = len(set(h.get("phase", "") for h in (history or [])))
+    meta = f"Generated {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
+    meta += f"&nbsp;&nbsp;|&nbsp;&nbsp;{rounds} round(s)"
+    story.append(Paragraph(meta, styles["ReportSubtitle"]))
 
-    # Defense
-    defense_heading = ParagraphStyle("DefenseH", parent=styles["SectionHeading"], textColor=DEFENSE_COLOR)
-    story.append(Paragraph("Opposing Counsel's Response", defense_heading))
-    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e5e7eb"), spaceAfter=8))
-    story.extend(_render_body_text(defense, styles))
-    story.append(Spacer(1, 8))
+    if history:
+        current_phase = None
+        for entry in history:
+            phase = entry.get("phase", "")
+            role = entry.get("role", "")
+            text = entry.get("text", "")
 
-    # Ruling
-    ruling_heading = ParagraphStyle("RulingH", parent=styles["SectionHeading"], textColor=GOLD_ACCENT)
-    story.append(Paragraph("Judicial Ruling", ruling_heading))
-    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e5e7eb"), spaceAfter=8))
-    story.extend(_render_body_text(ruling, styles))
+            if phase != current_phase:
+                current_phase = phase
+                phase_title = PHASE_TITLES.get(phase, phase.title())
+                phase_style = ParagraphStyle(
+                    f"Phase_{phase}", parent=styles["SectionHeading"],
+                    textColor=BLUE_ACCENT, fontSize=14,
+                )
+                story.append(Spacer(1, 10))
+                story.append(Paragraph(f"Round: {phase_title}", phase_style))
+                story.append(HRFlowable(
+                    width="100%", thickness=1, color=BLUE_ACCENT, spaceAfter=10,
+                ))
+
+            label, color = ROLE_CONFIG.get(role, (role.title(), TEXT_MID))
+            heading_style = ParagraphStyle(
+                f"H_{role}_{phase}", parent=styles["SectionHeading"],
+                textColor=color, fontSize=12,
+            )
+            story.append(Paragraph(label, heading_style))
+            story.append(HRFlowable(
+                width="100%", thickness=0.5,
+                color=colors.HexColor("#e5e7eb"), spaceAfter=6,
+            ))
+            story.extend(_render_body_text(text, styles))
+            story.append(Spacer(1, 6))
+    else:
+        if plaintiff:
+            h = ParagraphStyle("PH", parent=styles["SectionHeading"], textColor=PLAINTIFF_COLOR)
+            story.append(Paragraph("Plaintiff's Argument", h))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e5e7eb"), spaceAfter=8))
+            story.extend(_render_body_text(plaintiff, styles))
+            story.append(Spacer(1, 8))
+        if defense:
+            h = ParagraphStyle("DH", parent=styles["SectionHeading"], textColor=DEFENSE_COLOR)
+            story.append(Paragraph("Opposing Counsel's Response", h))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e5e7eb"), spaceAfter=8))
+            story.extend(_render_body_text(defense, styles))
+            story.append(Spacer(1, 8))
+        if ruling:
+            h = ParagraphStyle("RH", parent=styles["SectionHeading"], textColor=GOLD_ACCENT)
+            story.append(Paragraph("Judicial Ruling", h))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e5e7eb"), spaceAfter=8))
+            story.extend(_render_body_text(ruling, styles))
+
+    if coaching and isinstance(coaching, dict) and coaching.get("score"):
+        story.append(Spacer(1, 14))
+        coach_heading = ParagraphStyle(
+            "CoachH", parent=styles["SectionHeading"], textColor=GOLD_ACCENT,
+        )
+        story.append(Paragraph(f"Final Coach Scorecard — {coaching['score']}/10", coach_heading))
+        story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#e5e7eb"), spaceAfter=8))
+
+        for section, items in [
+            ("Strengths", coaching.get("strengths", [])),
+            ("Weaknesses", coaching.get("weaknesses", [])),
+            ("Tips", coaching.get("tips", [])),
+            ("Missing Elements", coaching.get("missing", [])),
+        ]:
+            if items:
+                story.append(Paragraph(section, styles["CoachLabel"]))
+                for item in items:
+                    story.append(Paragraph(f"• {item}", styles["BulletItem"]))
 
     story.extend(_build_footer(styles))
-
     doc.build(story)
     buf.seek(0)
     return buf.read()

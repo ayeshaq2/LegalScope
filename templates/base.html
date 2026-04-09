@@ -76,28 +76,65 @@
         class="absolute top-0 right-0 h-full w-80 bg-navy-900 border-l border-white/[0.05] z-20 flex flex-col transform translate-x-full transition-transform duration-300 shadow-2xl">
 
         <!-- Panel Header -->
-        <div class="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.05] flex-shrink-0">
-          <div class="flex items-center gap-2">
-            <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"/>
-            </svg>
-            <span class="text-[12px] font-bold text-white">Tools</span>
+        <div class="flex-shrink-0 border-b border-white/[0.05]">
+          <div class="flex items-center justify-between px-4 py-3.5">
+            <div class="flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"/>
+              </svg>
+              <span class="text-[12px] font-bold text-white">Tools</span>
+            </div>
+            <button onclick="closeToolsPanel()" class="p-1.5 rounded-lg hover:bg-white/[0.05] text-gray-500 hover:text-gray-300 transition-all">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
           </div>
-          <button onclick="closeToolsPanel()" class="p-1.5 rounded-lg hover:bg-white/[0.05] text-gray-500 hover:text-gray-300 transition-all">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
+          <p class="px-4 pb-3 text-[9px] text-gray-600 font-medium tracking-wide uppercase">External API Integrations</p>
         </div>
 
         <!-- Document Mode Tools -->
         <div id="tools-doc-mode" class="hidden flex-1 overflow-y-auto">
 
+          <!-- Icon Shortcut Row -->
+          <div class="px-4 py-3 border-b border-white/[0.04] flex items-center gap-2">
+            <button onclick="scrollToTool('readability')" class="tool-shortcut group flex flex-col items-center gap-1 p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] hover:border-gold-400/20 transition-all" title="Readability Score">
+              <span class="w-5 h-5 rounded flex items-center justify-center bg-white/[0.06] text-[8px] font-black text-gray-400 group-hover:text-gold-400">Aa</span>
+              <span class="text-[8px] text-gray-600 group-hover:text-gray-400">Read</span>
+            </button>
+            <button onclick="scrollToTool('glossary')" class="tool-shortcut group flex flex-col items-center gap-1 p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] hover:border-gold-400/20 transition-all" title="Legal Glossary via Wikipedia">
+              <img src="https://www.google.com/s2/favicons?domain=wikipedia.org&sz=16" class="w-5 h-5 rounded-sm" alt="">
+              <span class="text-[8px] text-gray-600 group-hover:text-gray-400">Wiki</span>
+            </button>
+            <button onclick="scrollToTool('doc-precedents')" class="tool-shortcut group flex flex-col items-center gap-1 p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] hover:border-gold-400/20 transition-all" title="Court Precedents via CourtListener">
+              <img src="https://www.google.com/s2/favicons?domain=courtlistener.com&sz=16" class="w-5 h-5 rounded-sm" alt="">
+              <span class="text-[8px] text-gray-600 group-hover:text-gray-400">Courts</span>
+            </button>
+            <button onclick="scrollToTool('doc-search')" class="tool-shortcut group flex flex-col items-center gap-1 p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] hover:border-gold-400/20 transition-all" title="Web Search via Tavily">
+              <img src="https://www.google.com/s2/favicons?domain=tavily.com&sz=16" class="w-5 h-5 rounded-sm" alt="">
+              <span class="text-[8px] text-gray-600 group-hover:text-gray-400">Search</span>
+            </button>
+            <button onclick="scrollToTool('doc-regulations')" class="tool-shortcut group flex flex-col items-center gap-1 p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] hover:border-gold-400/20 transition-all" title="Federal Regulations via Federal Register">
+              <img src="https://www.google.com/s2/favicons?domain=federalregister.gov&sz=16" class="w-5 h-5 rounded-sm" alt="">
+              <span class="text-[8px] text-gray-600 group-hover:text-gray-400">Regs</span>
+            </button>
+            <button onclick="scrollToTool('doc-translate')" class="tool-shortcut group flex flex-col items-center gap-1 p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] hover:border-gold-400/20 transition-all" title="AI Translation">
+              <span class="w-5 h-5 rounded flex items-center justify-center bg-white/[0.06]">
+                <svg class="w-3.5 h-3.5 text-gray-400 group-hover:text-gold-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m10.5 21 5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 0 1 6-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.785.147 2.666.257m-4.589 8.495a18.023 18.023 0 0 1-3.827-5.802"/></svg>
+              </span>
+              <span class="text-[8px] text-gray-600 group-hover:text-gray-400">Translate</span>
+            </button>
+          </div>
+
           <!-- Readability Score -->
-          <div class="tool-section border-b border-white/[0.04]">
+          <div id="section-readability" class="tool-section border-b border-white/[0.04]">
             <button onclick="toggleToolSection('readability')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all">
-              <span class="text-[11px] font-semibold text-gray-300">Readability Score</span>
-              <svg id="readability-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+              <span class="flex items-center gap-2">
+                <span class="w-5 h-5 rounded flex items-center justify-center bg-white/[0.04] border border-white/[0.06] text-[9px] font-black text-gray-400">Aa</span>
+                <span class="text-[11px] font-semibold text-gray-300">Readability Score</span>
+                <span class="text-[8px] font-medium text-gray-600 bg-white/[0.03] border border-white/[0.05] px-1.5 py-[1px] rounded">Built-in</span>
+              </span>
+              <svg id="readability-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             </button>
             <div id="tool-readability" class="hidden px-4 pb-4">
               <div id="readability-content" class="text-[11px] text-gray-500 italic">Upload a document to see its readability score.</div>
@@ -105,10 +142,14 @@
           </div>
 
           <!-- Legal Glossary -->
-          <div class="tool-section border-b border-white/[0.04]">
+          <div id="section-glossary" class="tool-section border-b border-white/[0.04]">
             <button onclick="toggleToolSection('glossary')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all">
-              <span class="text-[11px] font-semibold text-gray-300">Legal Glossary</span>
-              <svg id="glossary-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+              <span class="flex items-center gap-2">
+                <img src="https://www.google.com/s2/favicons?domain=wikipedia.org&sz=16" class="w-4 h-4 rounded-sm flex-shrink-0" alt="">
+                <span class="text-[11px] font-semibold text-gray-300">Legal Glossary</span>
+                <span class="text-[8px] font-medium text-blue-400/70 bg-blue-500/[0.08] border border-blue-400/10 px-1.5 py-[1px] rounded">via Wikipedia</span>
+              </span>
+              <svg id="glossary-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             </button>
             <div id="tool-glossary" class="hidden px-4 pb-4">
               <div id="glossary-content" class="text-[11px] text-gray-500 italic">Auto-populated after document analysis.</div>
@@ -116,10 +157,14 @@
           </div>
 
           <!-- Find Precedents -->
-          <div class="tool-section border-b border-white/[0.04]">
+          <div id="section-doc-precedents" class="tool-section border-b border-white/[0.04]">
             <button onclick="toggleToolSection('doc-precedents')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all">
-              <span class="text-[11px] font-semibold text-gray-300">Find Court Precedents</span>
-              <svg id="doc-precedents-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+              <span class="flex items-center gap-2">
+                <img src="https://www.google.com/s2/favicons?domain=courtlistener.com&sz=16" class="w-4 h-4 rounded-sm flex-shrink-0" alt="">
+                <span class="text-[11px] font-semibold text-gray-300">Find Court Precedents</span>
+                <span class="text-[8px] font-medium text-blue-400/70 bg-blue-500/[0.08] border border-blue-400/10 px-1.5 py-[1px] rounded">via CourtListener</span>
+              </span>
+              <svg id="doc-precedents-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             </button>
             <div id="tool-doc-precedents" class="hidden px-4 pb-4 space-y-3">
               <p class="text-[10px] text-gray-600">Search real US court opinions via CourtListener.</p>
@@ -132,10 +177,14 @@
           </div>
 
           <!-- Web Search -->
-          <div class="tool-section">
+          <div id="section-doc-search" class="tool-section border-b border-white/[0.04]">
             <button onclick="toggleToolSection('doc-search')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all">
-              <span class="text-[11px] font-semibold text-gray-300">Web Search</span>
-              <svg id="doc-search-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+              <span class="flex items-center gap-2">
+                <img src="https://www.google.com/s2/favicons?domain=tavily.com&sz=16" class="w-4 h-4 rounded-sm flex-shrink-0" alt="">
+                <span class="text-[11px] font-semibold text-gray-300">Web Search</span>
+                <span class="text-[8px] font-medium text-blue-400/70 bg-blue-500/[0.08] border border-blue-400/10 px-1.5 py-[1px] rounded">via Tavily</span>
+              </span>
+              <svg id="doc-search-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             </button>
             <div id="tool-doc-search" class="hidden px-4 pb-4 space-y-3">
               <p class="text-[10px] text-gray-600">Search for legal context, regulations, or news via Tavily.</p>
@@ -147,16 +196,100 @@
             </div>
           </div>
 
+          <!-- Federal Regulations -->
+          <div id="section-doc-regulations" class="tool-section border-b border-white/[0.04]">
+            <button onclick="toggleToolSection('doc-regulations')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all">
+              <span class="flex items-center gap-2">
+                <img src="https://www.google.com/s2/favicons?domain=federalregister.gov&sz=16" class="w-4 h-4 rounded-sm flex-shrink-0" alt="">
+                <span class="text-[11px] font-semibold text-gray-300">Federal Regulations</span>
+                <span class="text-[8px] font-medium text-blue-400/70 bg-blue-500/[0.08] border border-blue-400/10 px-1.5 py-[1px] rounded">via Federal Register</span>
+              </span>
+              <svg id="doc-regulations-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="tool-doc-regulations" class="hidden px-4 pb-4 space-y-3">
+              <p class="text-[10px] text-gray-600">Search US federal regulations, executive orders, and agency rules.</p>
+              <div class="flex gap-2">
+                <input id="doc-regulations-input" type="text" placeholder="e.g. consumer data privacy protection" class="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[11px] text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-400/30"/>
+                <button onclick="searchRegulations('doc-regulations-input', 'doc-regulations-results')" class="px-3 py-2 rounded-lg bg-blue-500/20 border border-blue-400/20 text-blue-400 text-[11px] font-semibold hover:bg-blue-500/30 transition-all flex-shrink-0">Search</button>
+              </div>
+              <div id="doc-regulations-results" class="space-y-2"></div>
+            </div>
+          </div>
+
+          <!-- Translate Document -->
+          <div id="section-doc-translate" class="tool-section">
+            <button onclick="toggleToolSection('doc-translate')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all">
+              <span class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m10.5 21 5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 0 1 6-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.785.147 2.666.257m-4.589 8.495a18.023 18.023 0 0 1-3.827-5.802"/></svg>
+                <span class="text-[11px] font-semibold text-gray-300">Translate Document</span>
+                <span class="text-[8px] font-medium text-gray-600 bg-white/[0.03] border border-white/[0.05] px-1.5 py-[1px] rounded">AI-Powered</span>
+              </span>
+              <svg id="doc-translate-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="tool-doc-translate" class="hidden px-4 pb-4 space-y-3">
+              <p class="text-[10px] text-gray-600">Translate your uploaded document into another language using AI.</p>
+              <select id="doc-translate-lang" class="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[11px] text-gray-200 focus:outline-none focus:border-blue-400/30">
+                <option value="">Select language…</option>
+                <option value="English">English</option>
+                <option value="French">French</option>
+                <option value="Spanish">Spanish</option>
+                <option value="German">German</option>
+                <option value="Portuguese">Portuguese</option>
+                <option value="Italian">Italian</option>
+                <option value="Dutch">Dutch</option>
+                <option value="Arabic">Arabic</option>
+                <option value="Mandarin Chinese">Mandarin Chinese</option>
+                <option value="Japanese">Japanese</option>
+                <option value="Korean">Korean</option>
+                <option value="Hindi">Hindi</option>
+                <option value="Russian">Russian</option>
+              </select>
+              <textarea id="doc-translate-input" rows="3" placeholder="Paste specific text here, or leave empty to translate the full document…" class="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[11px] text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-400/30 resize-none"></textarea>
+              <button onclick="translateDocument('doc')" class="w-full px-3 py-2 rounded-lg bg-blue-500/20 border border-blue-400/20 text-blue-400 text-[11px] font-semibold hover:bg-blue-500/30 transition-all">Translate</button>
+              <div id="doc-translate-results" class="space-y-2"></div>
+            </div>
+          </div>
+
         </div>
 
         <!-- Lawyer Mode Tools -->
         <div id="tools-lawyer-mode" class="hidden flex-1 overflow-y-auto">
 
+          <!-- Icon Shortcut Row -->
+          <div class="px-4 py-3 border-b border-white/[0.04] flex items-center gap-2">
+            <button onclick="scrollToTool('case-precedents')" class="tool-shortcut group flex flex-col items-center gap-1 p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] hover:border-gold-400/20 transition-all" title="Court Precedents via CourtListener">
+              <img src="https://www.google.com/s2/favicons?domain=courtlistener.com&sz=16" class="w-5 h-5 rounded-sm" alt="">
+              <span class="text-[8px] text-gray-600 group-hover:text-gray-400">Courts</span>
+            </button>
+            <button onclick="scrollToTool('statutes')" class="tool-shortcut group flex flex-col items-center gap-1 p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] hover:border-gold-400/20 transition-all" title="Statute Lookup via Congress.gov">
+              <img src="https://www.google.com/s2/favicons?domain=congress.gov&sz=16" class="w-5 h-5 rounded-sm" alt="">
+              <span class="text-[8px] text-gray-600 group-hover:text-gray-400">Statutes</span>
+            </button>
+            <button onclick="scrollToTool('case-search')" class="tool-shortcut group flex flex-col items-center gap-1 p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] hover:border-gold-400/20 transition-all" title="Web Search via Tavily">
+              <img src="https://www.google.com/s2/favicons?domain=tavily.com&sz=16" class="w-5 h-5 rounded-sm" alt="">
+              <span class="text-[8px] text-gray-600 group-hover:text-gray-400">Search</span>
+            </button>
+            <button onclick="scrollToTool('case-regulations')" class="tool-shortcut group flex flex-col items-center gap-1 p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] hover:border-gold-400/20 transition-all" title="Federal Regulations via Federal Register">
+              <img src="https://www.google.com/s2/favicons?domain=federalregister.gov&sz=16" class="w-5 h-5 rounded-sm" alt="">
+              <span class="text-[8px] text-gray-600 group-hover:text-gray-400">Regs</span>
+            </button>
+            <button onclick="scrollToTool('case-translate')" class="tool-shortcut group flex flex-col items-center gap-1 p-2 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] hover:border-gold-400/20 transition-all" title="AI Translation">
+              <span class="w-5 h-5 rounded flex items-center justify-center bg-white/[0.06]">
+                <svg class="w-3.5 h-3.5 text-gray-400 group-hover:text-gold-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m10.5 21 5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 0 1 6-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.785.147 2.666.257m-4.589 8.495a18.023 18.023 0 0 1-3.827-5.802"/></svg>
+              </span>
+              <span class="text-[8px] text-gray-600 group-hover:text-gray-400">Translate</span>
+            </button>
+          </div>
+
           <!-- Find Case Precedents -->
-          <div class="tool-section border-b border-white/[0.04]">
+          <div id="section-case-precedents" class="tool-section border-b border-white/[0.04]">
             <button onclick="toggleToolSection('case-precedents')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all">
-              <span class="text-[11px] font-semibold text-gray-300">Find Case Precedents</span>
-              <svg id="case-precedents-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+              <span class="flex items-center gap-2">
+                <img src="https://www.google.com/s2/favicons?domain=courtlistener.com&sz=16" class="w-4 h-4 rounded-sm flex-shrink-0" alt="">
+                <span class="text-[11px] font-semibold text-gray-300">Find Case Precedents</span>
+                <span class="text-[8px] font-medium text-blue-400/70 bg-blue-500/[0.08] border border-blue-400/10 px-1.5 py-[1px] rounded">via CourtListener</span>
+              </span>
+              <svg id="case-precedents-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             </button>
             <div id="tool-case-precedents" class="hidden px-4 pb-4 space-y-3">
               <p class="text-[10px] text-gray-600">Search US court opinions via CourtListener.</p>
@@ -169,10 +302,14 @@
           </div>
 
           <!-- Statute Lookup -->
-          <div class="tool-section border-b border-white/[0.04]">
+          <div id="section-statutes" class="tool-section border-b border-white/[0.04]">
             <button onclick="toggleToolSection('statutes')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all">
-              <span class="text-[11px] font-semibold text-gray-300">Statute Lookup</span>
-              <svg id="statutes-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+              <span class="flex items-center gap-2">
+                <img src="https://www.google.com/s2/favicons?domain=congress.gov&sz=16" class="w-4 h-4 rounded-sm flex-shrink-0" alt="">
+                <span class="text-[11px] font-semibold text-gray-300">Statute Lookup</span>
+                <span class="text-[8px] font-medium text-blue-400/70 bg-blue-500/[0.08] border border-blue-400/10 px-1.5 py-[1px] rounded">via Congress.gov</span>
+              </span>
+              <svg id="statutes-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             </button>
             <div id="tool-statutes" class="hidden px-4 pb-4 space-y-3">
               <p class="text-[10px] text-gray-600">Search US federal bills and statutes via Congress.gov.</p>
@@ -185,10 +322,14 @@
           </div>
 
           <!-- Web Search -->
-          <div class="tool-section">
+          <div id="section-case-search" class="tool-section border-b border-white/[0.04]">
             <button onclick="toggleToolSection('case-search')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all">
-              <span class="text-[11px] font-semibold text-gray-300">Web Search</span>
-              <svg id="case-search-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+              <span class="flex items-center gap-2">
+                <img src="https://www.google.com/s2/favicons?domain=tavily.com&sz=16" class="w-4 h-4 rounded-sm flex-shrink-0" alt="">
+                <span class="text-[11px] font-semibold text-gray-300">Web Search</span>
+                <span class="text-[8px] font-medium text-blue-400/70 bg-blue-500/[0.08] border border-blue-400/10 px-1.5 py-[1px] rounded">via Tavily</span>
+              </span>
+              <svg id="case-search-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             </button>
             <div id="tool-case-search" class="hidden px-4 pb-4 space-y-3">
               <p class="text-[10px] text-gray-600">Search for legal news, precedents, or context via Tavily.</p>
@@ -200,12 +341,69 @@
             </div>
           </div>
 
+          <!-- Federal Regulations -->
+          <div id="section-case-regulations" class="tool-section border-b border-white/[0.04]">
+            <button onclick="toggleToolSection('case-regulations')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all">
+              <span class="flex items-center gap-2">
+                <img src="https://www.google.com/s2/favicons?domain=federalregister.gov&sz=16" class="w-4 h-4 rounded-sm flex-shrink-0" alt="">
+                <span class="text-[11px] font-semibold text-gray-300">Federal Regulations</span>
+                <span class="text-[8px] font-medium text-blue-400/70 bg-blue-500/[0.08] border border-blue-400/10 px-1.5 py-[1px] rounded">via Federal Register</span>
+              </span>
+              <svg id="case-regulations-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="tool-case-regulations" class="hidden px-4 pb-4 space-y-3">
+              <p class="text-[10px] text-gray-600">Search US federal regulations, executive orders, and agency rules.</p>
+              <div class="flex gap-2">
+                <input id="case-regulations-input" type="text" placeholder="e.g. EEOC employment discrimination rules" class="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[11px] text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gold-400/30"/>
+                <button onclick="searchRegulations('case-regulations-input', 'case-regulations-results')" class="px-3 py-2 rounded-lg bg-gold-400/20 border border-gold-400/20 text-gold-400 text-[11px] font-semibold hover:bg-gold-400/30 transition-all flex-shrink-0">Search</button>
+              </div>
+              <div id="case-regulations-results" class="space-y-2"></div>
+            </div>
+          </div>
+
+          <!-- Translate Text -->
+          <div id="section-case-translate" class="tool-section">
+            <button onclick="toggleToolSection('case-translate')" class="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all">
+              <span class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m10.5 21 5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 0 1 6-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.785.147 2.666.257m-4.589 8.495a18.023 18.023 0 0 1-3.827-5.802"/></svg>
+                <span class="text-[11px] font-semibold text-gray-300">Translate Text</span>
+                <span class="text-[8px] font-medium text-gray-600 bg-white/[0.03] border border-white/[0.05] px-1.5 py-[1px] rounded">AI-Powered</span>
+              </span>
+              <svg id="case-translate-chevron" class="w-3.5 h-3.5 text-gray-600 transition-transform flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div id="tool-case-translate" class="hidden px-4 pb-4 space-y-3">
+              <p class="text-[10px] text-gray-600">Translate case text or legal content into another language using AI.</p>
+              <select id="case-translate-lang" class="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[11px] text-gray-200 focus:outline-none focus:border-gold-400/30">
+                <option value="">Select language…</option>
+                <option value="English">English</option>
+                <option value="French">French</option>
+                <option value="Spanish">Spanish</option>
+                <option value="German">German</option>
+                <option value="Portuguese">Portuguese</option>
+                <option value="Italian">Italian</option>
+                <option value="Dutch">Dutch</option>
+                <option value="Arabic">Arabic</option>
+                <option value="Mandarin Chinese">Mandarin Chinese</option>
+                <option value="Japanese">Japanese</option>
+                <option value="Korean">Korean</option>
+                <option value="Hindi">Hindi</option>
+                <option value="Russian">Russian</option>
+              </select>
+              <textarea id="case-translate-input" rows="3" placeholder="Paste legal text to translate…" class="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[11px] text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gold-400/30 resize-none"></textarea>
+              <button onclick="translateDocument('case')" class="w-full px-3 py-2 rounded-lg bg-gold-400/20 border border-gold-400/20 text-gold-400 text-[11px] font-semibold hover:bg-gold-400/30 transition-all">Translate</button>
+              <div id="case-translate-results" class="space-y-2"></div>
+            </div>
+          </div>
+
         </div>
 
       </div>
     </main>
 
   </div>
+
+  <!-- Google API (for Drive Picker) -->
+  <script src="https://apis.google.com/js/api.js"></script>
 
   <!-- Scripts -->
   <script src="/static/js/state.js"></script>

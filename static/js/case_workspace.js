@@ -109,6 +109,8 @@ function renderCaseFiles(files) {
 
 /* ═══ ANALYZE TAB ═══ */
 
+const caseChatHistory = [];
+
 function insertCaseQuery(text) {
   const input = document.getElementById('case-chat-input');
   input.value = text;
@@ -165,6 +167,8 @@ async function sendCaseMessage() {
   box.appendChild(loader);
   box.scrollTop = box.scrollHeight;
 
+  caseChatHistory.push({ role: 'user', text });
+
   try {
     const res = await fetch(`/api/projects/${AppState.activeProject.id}/query`, {
       method: 'POST',
@@ -175,7 +179,12 @@ async function sendCaseMessage() {
     const ld = document.getElementById('case-chat-loader');
     if (ld) ld.remove();
 
-    appendAiMessage(box, data.response || data.error || 'No response.', 'gold');
+    const reply = data.response || data.error || 'No response.';
+    caseChatHistory.push({ role: 'ai', text: reply });
+    appendAiMessage(box, reply, 'gold');
+
+    const pdfBtn = document.getElementById('btn-export-case-pdf');
+    if (pdfBtn) pdfBtn.classList.remove('hidden');
   } catch {
     const ld = document.getElementById('case-chat-loader');
     if (ld) ld.remove();
@@ -224,7 +233,53 @@ if (caseChatInput) {
 }
 
 
+/* ── Export Case Report PDF ── */
+
+async function exportCaseReportPDF() {
+  if (!AppState.activeProject || !caseChatHistory.length) {
+    alert('No analysis to export yet. Ask some questions first.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-export-case-pdf');
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>`;
+
+  try {
+    const res = await fetch(`/api/projects/${AppState.activeProject.id}/report/pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: caseChatHistory }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || 'Failed to generate PDF');
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (AppState.activeProject.name || 'case') + '_report.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    alert('Connection error — could not generate PDF.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  }
+}
+
+
 /* ═══ MOCK TRIAL TAB ═══ */
+
+let lastTrialData = null;
 
 async function runCaseTrial() {
   const argument = document.getElementById('case-trial-argument').value.trim();
@@ -244,6 +299,7 @@ async function runCaseTrial() {
     document.getElementById('case-trial-loading').classList.add('hidden');
 
     if (res.ok) {
+      lastTrialData = { plaintiff: data.plaintiff, defense: data.defense, ruling: data.ruling };
       document.getElementById('case-trial-plaintiff').textContent = data.plaintiff;
       document.getElementById('case-trial-defense').textContent = data.defense;
       document.getElementById('case-trial-ruling').textContent = data.ruling;
@@ -261,4 +317,37 @@ function resetCaseTrial() {
   document.getElementById('case-trial-results').classList.add('hidden');
   document.getElementById('case-trial-argument').value = '';
   document.getElementById('case-trial-argument').focus();
+}
+
+async function exportTrialReportPDF() {
+  if (!AppState.activeProject || !lastTrialData) {
+    alert('No trial results to export. Run a mock trial first.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/projects/${AppState.activeProject.id}/trial/pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(lastTrialData),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || 'Failed to generate PDF');
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (AppState.activeProject.name || 'case') + '_trial.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    alert('Connection error — could not generate PDF.');
+  }
 }

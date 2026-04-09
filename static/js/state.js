@@ -5,6 +5,8 @@ const AppState = {
   userSessionId: null,
   uploadedDocName: null,
   queryCount: 0,
+  lastAnalysis: null,
+  lastReadability: null,
 };
 
 function escapeHtml(text) {

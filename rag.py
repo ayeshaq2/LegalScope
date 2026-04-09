@@ -20,7 +20,10 @@ from langchain_chroma import Chroma
 
 UPLOAD_DIR = "./uploads"
 DB_BASE_DIR = "./project_dbs"
+KNOWLEDGE_DB_DIR = "./legal_db"
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+KNOWLEDGE_DATASET = "jhu-clsp/CLERC"
+KNOWLEDGE_SIZE = 50
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
@@ -110,17 +113,79 @@ def generate(prompt, retries=3, backoff=5, max_tokens=512):
     raise RuntimeError("All models rate-limited. Try again in a moment.")
 
 
+# ─── Knowledge Base ──────────────────────────────────────────
+
+def build_knowledge_base(embeddings):
+    """Build or load the CLERC legal knowledge base. Returns a Chroma DB or None."""
+    if os.path.exists(KNOWLEDGE_DB_DIR):
+        db = Chroma(
+            persist_directory=KNOWLEDGE_DB_DIR,
+            embedding_function=embeddings,
+        )
+        try:
+            count = db._collection.count()
+            if count > 0:
+                print(f"  Knowledge base loaded: {count} chunks")
+                return db
+        except Exception:
+            pass
+
+    print("  Building knowledge base from CLERC dataset (first run only) …")
+    try:
+        from datasets import load_dataset
+        from tqdm import tqdm
+
+        dataset = load_dataset(KNOWLEDGE_DATASET, split="train")
+        dataset = dataset.select(range(min(KNOWLEDGE_SIZE, len(dataset))))
+
+        documents = []
+        for item in dataset:
+            query = item.get("query", "")
+            passages = [p["text"] for p in item.get("positive_passages", [])]
+            full_text = (query + " " + " ".join(passages)).strip()
+            if full_text:
+                documents.append(full_text)
+
+        splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
+        chunks = splitter.create_documents(documents)
+        print(f"  Created {len(chunks)} chunks from {len(documents)} documents")
+
+        os.makedirs(KNOWLEDGE_DB_DIR, exist_ok=True)
+        db = Chroma(
+            persist_directory=KNOWLEDGE_DB_DIR,
+            embedding_function=embeddings,
+        )
+
+        batch_size = 500
+        for i in tqdm(range(0, len(chunks), batch_size), desc="  Embedding"):
+            batch = chunks[i:i + batch_size]
+            db.add_documents(batch)
+
+        print(f"  Knowledge base built: {db._collection.count()} chunks")
+        return db
+    except Exception as e:
+        print(f"  Warning: Could not build knowledge base: {e}")
+        print("  Continuing without precedent knowledge …")
+        return None
+
+
 # ─── Prompt Templates ────────────────────────────────────────
 
-def case_analysis_prompt(query, docs, history=""):
+def case_analysis_prompt(query, docs, history="", precedents=None):
     context = "\n\n---\n\n".join(d.page_content for d in docs)
+
+    precedent_block = ""
+    if precedents:
+        precedent_context = "\n\n---\n\n".join(d.page_content for d in precedents)
+        precedent_block = f"\nRELEVANT LEGAL PRECEDENTS:\n{precedent_context}\n"
+
     return f"""You are LegalScope, an AI legal analysis assistant helping a lawyer prepare a case.
 
-Based on the following case documents, answer the question thoroughly.
+Based on the following case documents and legal precedents, answer the question thoroughly.
 
-DOCUMENTS:
+CASE DOCUMENTS:
 {context}
-
+{precedent_block}
 CONVERSATION HISTORY:
 {history}
 
@@ -130,6 +195,7 @@ QUESTION:
 Provide a structured answer covering:
 - Direct answer to the question
 - Relevant evidence from the documents
+- Applicable legal precedents (if any are provided)
 - Legal implications or risks
 - Strategic recommendations
 
@@ -154,20 +220,26 @@ If the answer cannot be found in the document, say so.
 ANSWER:"""
 
 
-def opposing_counsel_prompt(argument, docs):
+def opposing_counsel_prompt(argument, docs, precedents=None):
     context = "\n\n---\n\n".join(d.page_content for d in docs)
+
+    precedent_block = ""
+    if precedents:
+        precedent_context = "\n\n---\n\n".join(d.page_content for d in precedents)
+        precedent_block = f"\nRELEVANT LEGAL PRECEDENTS:\n{precedent_context}\n"
+
     return f"""You are an experienced opposing counsel in a courtroom.
 
-Based on the case materials, aggressively challenge the plaintiff's argument.
+Based on the case materials and legal precedents, aggressively challenge the plaintiff's argument.
 
 CASE MATERIALS:
 {context}
-
+{precedent_block}
 PLAINTIFF'S ARGUMENT:
 {argument}
 
 Provide:
-1. Strong counterarguments
+1. Strong counterarguments (cite precedents where applicable)
 2. Weaknesses in the plaintiff's position
 3. Cross-examination questions you would ask
 4. Alternative interpretations of the evidence
@@ -175,13 +247,19 @@ Provide:
 DEFENSE RESPONSE:"""
 
 
-def rebuttal_defense_prompt(original_argument, first_defense, rebuttal, docs):
+def rebuttal_defense_prompt(original_argument, first_defense, rebuttal, docs, precedents=None):
     context = "\n\n---\n\n".join(d.page_content for d in docs)
+
+    precedent_block = ""
+    if precedents:
+        precedent_context = "\n\n---\n\n".join(d.page_content for d in precedents)
+        precedent_block = f"\nRELEVANT LEGAL PRECEDENTS:\n{precedent_context}\n"
+
     return f"""You are an experienced opposing counsel in a courtroom. The plaintiff has responded to your initial defense with a rebuttal.
 
 CASE MATERIALS:
 {context}
-
+{precedent_block}
 ORIGINAL PLAINTIFF ARGUMENT:
 {original_argument}
 
@@ -191,7 +269,7 @@ YOUR INITIAL DEFENSE:
 PLAINTIFF'S REBUTTAL:
 {rebuttal}
 
-Counter the plaintiff's rebuttal. Address their new points directly, exploit any remaining weaknesses, and reinforce your strongest arguments. Be aggressive but precise.
+Counter the plaintiff's rebuttal. Address their new points directly, exploit any remaining weaknesses, and reinforce your strongest arguments. Cite relevant precedents. Be aggressive but precise.
 
 DEFENSE COUNTER-REBUTTAL:"""
 
@@ -211,16 +289,22 @@ Evaluate ALL arguments presented by both sides across every round and provide:
 JUDICIAL RULING:"""
 
 
-def coach_prompt(argument, docs, phase, history_text=""):
+def coach_prompt(argument, docs, phase, history_text="", precedents=None):
     context = "\n\n---\n\n".join(d.page_content for d in docs)
     phase_labels = {"opening": "opening argument", "rebuttal": "rebuttal", "closing": "closing statement"}
     phase_label = phase_labels.get(phase, phase)
+
+    precedent_block = ""
+    if precedents:
+        precedent_context = "\n\n---\n\n".join(d.page_content for d in precedents)
+        precedent_block = f"\nRELEVANT LEGAL PRECEDENTS:\n{precedent_context}\n"
+
     return f"""You are a law school professor coaching a student through a mock trial exercise.
-The student just submitted their {phase_label}. Evaluate it against the case materials.
+The student just submitted their {phase_label}. Evaluate it against the case materials and relevant precedents.
 
 CASE MATERIALS:
 {context}
-
+{precedent_block}
 TRIAL HISTORY SO FAR:
 {history_text}
 
@@ -235,8 +319,8 @@ Rules:
 - score: 1 = very poor, 10 = exceptional
 - Each array should have 2-4 items
 - Be specific to THIS argument and THESE case materials
-- For tips, tell them exactly what to say or cite
-- For missing, reference specific evidence or legal principles from the case materials they should have used"""
+- For tips, tell them exactly what to say or cite (including relevant precedents)
+- For missing, reference specific evidence, legal principles, or precedents they should have used"""
 
 
 def auto_analysis_prompt(docs):
@@ -381,6 +465,13 @@ class LegalScope:
             model_kwargs={"device": "cpu"},
         )
         print("  Embedding model loaded.")
+
+        self.knowledge_db = build_knowledge_base(self.embeddings)
+        self.knowledge_retriever = (
+            self.knowledge_db.as_retriever(search_kwargs={"k": 3})
+            if self.knowledge_db else None
+        )
+
         print(f"  Generator: OpenRouter ({FALLBACK_MODELS[0]})")
 
         self.stores = {}
@@ -391,6 +482,14 @@ class LegalScope:
             self.stores[store_id] = DocumentStore(store_id, self.embeddings)
             self.history[store_id] = []
         return self.stores[store_id]
+
+    def _get_precedents(self, query):
+        if self.knowledge_retriever:
+            try:
+                return self.knowledge_retriever.invoke(query)
+            except Exception:
+                return []
+        return []
 
     def ingest_file(self, store_id, filepath):
         text = extract_text(filepath)
@@ -455,7 +554,8 @@ class LegalScope:
         history_text = "\n".join(hist[-3:])
 
         if mode == "case":
-            prompt = case_analysis_prompt(query, docs, history_text)
+            precedents = self._get_precedents(query)
+            prompt = case_analysis_prompt(query, docs, history_text, precedents)
         else:
             prompt = document_qa_prompt(query, docs)
 
@@ -488,6 +588,8 @@ class LegalScope:
         if not docs:
             return {"error": "No case documents found. Upload documents first."}
 
+        precedents = self._get_precedents(argument)
+
         history = history or []
         history_text = "\n\n".join(
             f"[{h['role'].upper()}] ({h.get('phase', '')})\n{h['text']}"
@@ -495,8 +597,8 @@ class LegalScope:
         )
 
         if phase == "opening":
-            defense = generate(opposing_counsel_prompt(argument, docs), max_tokens=4096)
-            coaching = self._get_coaching(argument, docs, "opening", history_text)
+            defense = generate(opposing_counsel_prompt(argument, docs, precedents), max_tokens=4096)
+            coaching = self._get_coaching(argument, docs, "opening", history_text, precedents)
             return {"phase": "opening", "defense": defense, "coaching": coaching}
 
         elif phase == "rebuttal":
@@ -508,24 +610,24 @@ class LegalScope:
                 if h.get("phase") == "opening" and h["role"] == "defense":
                     first_defense = h["text"]
             defense = generate(
-                rebuttal_defense_prompt(first_argument, first_defense, argument, docs),
+                rebuttal_defense_prompt(first_argument, first_defense, argument, docs, precedents),
                 max_tokens=4096,
             )
-            coaching = self._get_coaching(argument, docs, "rebuttal", history_text)
+            coaching = self._get_coaching(argument, docs, "rebuttal", history_text, precedents)
             return {"phase": "rebuttal", "defense": defense, "coaching": coaching}
 
         elif phase == "closing":
-            coaching = self._get_coaching(argument, docs, "closing", history_text)
+            coaching = self._get_coaching(argument, docs, "closing", history_text, precedents)
             full_history = history_text + f"\n\n[PLAINTIFF] (closing)\n{argument}"
             ruling = generate(judge_prompt(full_history), max_tokens=4096)
             return {"phase": "closing", "ruling": ruling, "coaching": coaching}
 
         return {"error": f"Unknown phase: {phase}"}
 
-    def _get_coaching(self, argument, docs, phase, history_text):
+    def _get_coaching(self, argument, docs, phase, history_text, precedents=None):
         import json as _json
         try:
-            raw = generate(coach_prompt(argument, docs, phase, history_text), max_tokens=600)
+            raw = generate(coach_prompt(argument, docs, phase, history_text, precedents), max_tokens=600)
             raw = raw.strip()
             if raw.startswith("```"):
                 raw = re.sub(r"^```(?:json)?\s*", "", raw)

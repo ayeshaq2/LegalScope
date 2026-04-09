@@ -13,3 +13,5 @@ tavily-python
 google-auth-oauthlib
 google-api-python-client
 reportlab
+datasets
+tqdm

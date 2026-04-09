@@ -62,7 +62,10 @@ async function uploadUserDoc(file) {
       showDocSidebar(data.filename);
 
       // Push readability into tools panel immediately
-      if (data.readability) renderReadability(data.readability);
+      if (data.readability) {
+        renderReadability(data.readability);
+        AppState.lastReadability = data.readability;
+      }
 
       // Switch to chat and kick off auto-analysis immediately
       switchView('doc-chat');
@@ -180,6 +183,11 @@ async function runAutoAnalysis(sessionId) {
     const suggestions = data.suggestions || [];
     appendAutoAnalysis(box, analysisText, suggestions);
 
+    AppState.lastAnalysis = analysisText;
+
+    const pdfBtn = document.getElementById('btn-export-pdf');
+    if (pdfBtn) pdfBtn.classList.remove('hidden');
+
     // Push glossary into tools panel
     if (data.glossary) renderGlossary(data.glossary);
   } catch {
@@ -232,6 +240,53 @@ function appendAutoAnalysis(container, text, suggestions = []) {
 
   container.appendChild(msg);
   container.scrollTop = container.scrollHeight;
+}
+
+/* ── Export PDF ── */
+
+async function exportAnalysisPDF() {
+  if (!AppState.lastAnalysis) {
+    alert('No analysis available yet. Upload and analyze a document first.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-export-pdf');
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>`;
+
+  try {
+    const res = await fetch('/api/doc/report/pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        analysis: AppState.lastAnalysis,
+        filename: AppState.uploadedDocName || 'document',
+        readability: AppState.lastReadability || null,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.error || 'Failed to generate PDF');
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (AppState.uploadedDocName || 'document').replace(/\.[^.]+$/, '') + '_analysis.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch {
+    alert('Connection error — could not generate PDF.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  }
 }
 
 // Enter to send

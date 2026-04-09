@@ -1,3 +1,4 @@
+import io
 import os
 import uuid
 
@@ -5,9 +6,10 @@ import requests
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 from rag import LegalScope, compute_readability, extract_text
+from report_generator import generate_pdf, generate_case_report_pdf, generate_trial_report_pdf
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -125,6 +127,66 @@ def project_mock_trial(project_id):
     return jsonify(result)
 
 
+@app.route("/api/projects/<project_id>/report/pdf", methods=["POST"])
+def export_case_report(project_id):
+    if project_id not in projects:
+        return jsonify({"error": "Project not found"}), 404
+
+    data = request.get_json(force=True)
+    messages = data.get("messages", [])
+    if not messages:
+        return jsonify({"error": "No messages to export"}), 400
+
+    project = projects[project_id]
+    try:
+        pdf_bytes = generate_case_report_pdf(
+            case_name=project.get("name", "Case"),
+            messages=messages,
+            files=project.get("files"),
+        )
+        safe_name = secure_filename(project.get("name", "case")) or "case"
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"{safe_name}_report.pdf",
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/projects/<project_id>/trial/pdf", methods=["POST"])
+def export_trial_report(project_id):
+    if project_id not in projects:
+        return jsonify({"error": "Project not found"}), 404
+
+    data = request.get_json(force=True)
+    plaintiff = data.get("plaintiff", "").strip()
+    defense = data.get("defense", "").strip()
+    ruling = data.get("ruling", "").strip()
+
+    if not plaintiff or not defense or not ruling:
+        return jsonify({"error": "Missing trial data"}), 400
+
+    project = projects[project_id]
+    try:
+        pdf_bytes = generate_trial_report_pdf(
+            case_name=project.get("name", "Case"),
+            plaintiff=plaintiff,
+            defense=defense,
+            ruling=ruling,
+        )
+        safe_name = secure_filename(project.get("name", "case")) or "case"
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"{safe_name}_trial.pdf",
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ─── Document Analysis Endpoints (User Mode) ─────────────────
 
 @app.route("/api/doc/upload", methods=["POST"])
@@ -192,6 +254,31 @@ def analyze_document():
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 429
     return jsonify(result)
+
+
+# ─── Report Export ────────────────────────────────────────────
+
+@app.route("/api/doc/report/pdf", methods=["POST"])
+def export_pdf_report():
+    data = request.get_json(force=True)
+    analysis = data.get("analysis", "").strip()
+    filename = data.get("filename", "document").strip()
+    readability = data.get("readability", None)
+
+    if not analysis:
+        return jsonify({"error": "No analysis text provided"}), 400
+
+    try:
+        pdf_bytes = generate_pdf(analysis, filename=filename, readability=readability)
+        safe_name = secure_filename(filename.rsplit(".", 1)[0]) or "document"
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"{safe_name}_analysis.pdf",
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ─── External Tool Endpoints ──────────────────────────────────

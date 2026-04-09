@@ -2,6 +2,119 @@
  *  DOC_ANALYSIS.JS — User mode: document upload + chat
  * ═══════════════════════════════════════════════════════ */
 
+/* ── Google Drive Picker ── */
+
+let _driveApiKey = null;
+let _driveAccessToken = null;
+let _pickerApiLoaded = false;
+
+// On page load, check if we just returned from Google OAuth
+window.addEventListener('DOMContentLoaded', async () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('drive') === 'ready') {
+    // Clean URL then open picker now that we're authenticated
+    history.replaceState({}, '', '/');
+    await _loadDriveStatus();
+    _openPicker();
+  } else {
+    await _loadDriveStatus();
+  }
+});
+
+async function _loadDriveStatus() {
+  try {
+    const res = await fetch('/auth/google/status');
+    const data = await res.json();
+    _driveApiKey = data.api_key;
+    if (data.authenticated) {
+      _driveAccessToken = data.access_token;
+      const badge = document.getElementById('drive-auth-badge');
+      if (badge) badge.classList.remove('hidden');
+    }
+  } catch { /* ignore */ }
+}
+
+async function openGoogleDrivePicker() {
+  // If not authenticated yet, redirect to Google OAuth
+  if (!_driveAccessToken) {
+    window.location.href = '/auth/google';
+    return;
+  }
+  _openPicker();
+}
+
+function _openPicker() {
+  if (!_pickerApiLoaded) {
+    gapi.load('picker', { callback: () => { _pickerApiLoaded = true; _buildPicker(); } });
+  } else {
+    _buildPicker();
+  }
+}
+
+function _buildPicker() {
+  const view = new google.picker.DocsView()
+    .setIncludeFolders(false)
+    .setMimeTypes('application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.google-apps.document');
+
+  const picker = new google.picker.PickerBuilder()
+    .setTitle('Select a document to analyze')
+    .setOAuthToken(_driveAccessToken)
+    .setDeveloperKey(_driveApiKey)
+    .addView(view)
+    .setCallback(_onPickerSelected)
+    .build();
+
+  picker.setVisible(true);
+}
+
+async function _onPickerSelected(data) {
+  if (data[google.picker.Response.ACTION] !== google.picker.Action.PICKED) return;
+
+  const file     = data[google.picker.Response.DOCUMENTS][0];
+  const fileId   = file[google.picker.Document.ID];
+  const fileName = file[google.picker.Document.NAME];
+  const mimeType = file[google.picker.Document.MIME_TYPE];
+
+  const progress = document.getElementById('drive-import-progress');
+  const info     = document.getElementById('doc-uploaded-info');
+  if (progress) progress.classList.remove('hidden');
+  if (info)     info.classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/doc/import-drive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_id: fileId, file_name: fileName, mime_type: mimeType }),
+    });
+    const driveData = await res.json();
+
+    if (progress) progress.classList.add('hidden');
+
+    if (res.ok) {
+      AppState.userSessionId   = driveData.session_id;
+      AppState.uploadedDocName = driveData.filename;
+
+      document.getElementById('doc-uploaded-name').textContent   = driveData.filename;
+      document.getElementById('doc-uploaded-chunks').textContent = `Processed into ${driveData.chunks} searchable sections`;
+      if (info) info.classList.remove('hidden');
+
+      const chatBtn = document.getElementById('btn-doc-chat');
+      if (chatBtn) chatBtn.disabled = false;
+
+      showDocSidebar(driveData.filename);
+      if (driveData.readability) renderReadability(driveData.readability);
+
+      switchView('doc-chat');
+      runAutoAnalysis(driveData.session_id);
+    } else {
+      alert(driveData.error || 'Import failed.');
+    }
+  } catch {
+    if (progress) progress.classList.add('hidden');
+    alert('Connection error — is the server running?');
+  }
+}
+
 /* ── File Upload ── */
 
 const docDropZone = document.getElementById('doc-drop-zone');

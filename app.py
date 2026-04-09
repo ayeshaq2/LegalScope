@@ -1,16 +1,45 @@
 import os
+import io
 import uuid
 
 import requests
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, render_template, request, jsonify
+# Allow OAuth over HTTP for local development
+os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")
+
+from flask import Flask, render_template, request, jsonify, redirect, session
 from werkzeug.utils import secure_filename
 from rag import LegalScope, compute_readability, extract_text
 
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+from googleapiclient import http as google_http
+from google.oauth2.credentials import Credentials
+
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get("FLASK_SECRET", os.urandom(24))
+
+GOOGLE_CLIENT_ID     = os.environ.get("CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "")
+GOOGLE_API_KEY       = os.environ.get("GOOGLE_API_KEY", "")
+GOOGLE_REDIRECT_URI  = "http://localhost:5000/auth/google/callback"
+GOOGLE_SCOPES        = ["https://www.googleapis.com/auth/drive.readonly"]
+
+
+def _google_flow():
+    return Flow.from_client_config(
+        {"web": {
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": [GOOGLE_REDIRECT_URI],
+        }},
+        scopes=GOOGLE_SCOPES,
+        redirect_uri=GOOGLE_REDIRECT_URI,
+    )
 
 UPLOAD_DIR = "./uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -192,6 +221,115 @@ def analyze_document():
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 429
     return jsonify(result)
+
+
+# ─── Google Drive Auth ────────────────────────────────────────
+
+@app.route("/auth/google")
+def auth_google():
+    flow = _google_flow()
+    auth_url, state = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent",
+    )
+    session["google_oauth_state"] = state
+    return redirect(auth_url)
+
+
+@app.route("/auth/google/callback")
+def auth_google_callback():
+    flow = _google_flow()
+    flow.fetch_token(authorization_response=request.url)
+    creds = flow.credentials
+    session["google_token"] = {
+        "token":          creds.token,
+        "refresh_token":  creds.refresh_token,
+        "token_uri":      creds.token_uri,
+        "client_id":      creds.client_id,
+        "client_secret":  creds.client_secret,
+        "scopes":         list(creds.scopes) if creds.scopes else [],
+    }
+    return redirect("/?drive=ready")
+
+
+@app.route("/auth/google/status")
+def auth_google_status():
+    token = session.get("google_token")
+    return jsonify({
+        "authenticated": token is not None,
+        "access_token":  token["token"] if token else None,
+        "api_key":       GOOGLE_API_KEY,
+    })
+
+
+@app.route("/auth/google/logout", methods=["POST"])
+def auth_google_logout():
+    session.pop("google_token", None)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/doc/import-drive", methods=["POST"])
+def import_drive_file():
+    token_data = session.get("google_token")
+    if not token_data:
+        return jsonify({"error": "Not authenticated with Google Drive"}), 401
+
+    data      = request.get_json(force=True)
+    file_id   = data.get("file_id", "").strip()
+    file_name = data.get("file_name", "document").strip()
+    mime_type = data.get("mime_type", "")
+
+    if not file_id:
+        return jsonify({"error": "file_id is required"}), 400
+
+    try:
+        creds = Credentials(
+            token=token_data["token"],
+            refresh_token=token_data.get("refresh_token"),
+            token_uri=token_data["token_uri"],
+            client_id=token_data["client_id"],
+            client_secret=token_data["client_secret"],
+            scopes=token_data.get("scopes"),
+        )
+        service = build("drive", "v3", credentials=creds)
+
+        # Google Docs/Sheets/Slides must be exported as PDF
+        if "google-apps" in mime_type:
+            req = service.files().export_media(fileId=file_id, mimeType="application/pdf")
+            file_name = file_name.rsplit(".", 1)[0] + ".pdf"
+        else:
+            req = service.files().get_media(fileId=file_id)
+
+        buf = io.BytesIO()
+        downloader = google_http.MediaIoBaseDownload(buf, req)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+
+        session_id  = str(uuid.uuid4())[:8]
+        session_dir = os.path.join(UPLOAD_DIR, "user_" + session_id)
+        os.makedirs(session_dir, exist_ok=True)
+
+        safe_name = secure_filename(file_name) or "document.pdf"
+        filepath  = os.path.join(session_dir, safe_name)
+        with open(filepath, "wb") as f:
+            f.write(buf.getvalue())
+
+        eng      = get_engine()
+        store_id = "user_" + session_id
+        chunks   = eng.ingest_file(store_id, filepath)
+        text     = extract_text(filepath)
+        readability = compute_readability(text) if text.strip() else None
+
+        return jsonify({
+            "session_id":   session_id,
+            "filename":     safe_name,
+            "chunks":       chunks,
+            "readability":  readability,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ─── External Tool Endpoints ──────────────────────────────────

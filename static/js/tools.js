@@ -42,6 +42,20 @@ function toggleToolSection(id) {
   if (chevron) chevron.classList.toggle('rotate-180');
 }
 
+function scrollToTool(sectionId) {
+  const section = document.getElementById('section-' + sectionId);
+  const content = document.getElementById('tool-' + sectionId);
+  const chevron = document.getElementById(sectionId + '-chevron');
+  if (!section) return;
+
+  if (content && content.classList.contains('hidden')) {
+    content.classList.remove('hidden');
+    if (chevron) chevron.classList.add('rotate-180');
+  }
+
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 
 /* ── Readability ── */
 
@@ -228,6 +242,41 @@ async function searchStatutes() {
 }
 
 
+/* ── Federal Regulations (Federal Register) ── */
+
+async function searchRegulations(inputId, resultsId) {
+  const query = document.getElementById(inputId)?.value.trim();
+  const resultsEl = document.getElementById(resultsId);
+  if (!query || !resultsEl) return;
+
+  resultsEl.innerHTML = toolLoader('Searching federal regulations …');
+
+  try {
+    const res = await fetch(`/api/tools/regulations?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      resultsEl.innerHTML = toolError(data.error || 'Search failed.');
+      return;
+    }
+
+    if (!data.regulations || data.regulations.length === 0) {
+      resultsEl.innerHTML = '<p class="text-[11px] text-gray-600 italic">No regulations found. Try a different query.</p>';
+      return;
+    }
+
+    resultsEl.innerHTML = data.regulations.map(r => `
+      <div class="bg-white/[0.02] border border-white/[0.04] rounded-lg p-3 space-y-1">
+        <a href="${escapeHtml(r.url)}" target="_blank" class="text-[11px] font-semibold text-blue-400 hover:text-blue-300 leading-snug block">${escapeHtml(r.title)}</a>
+        <p class="text-[10px] text-gray-600">${escapeHtml(r.agency)} · ${escapeHtml(r.date || '')} · ${escapeHtml(r.type || '')}</p>
+        ${r.abstract ? `<p class="text-[11px] text-gray-400 leading-relaxed">${escapeHtml(r.abstract)}</p>` : ''}
+      </div>`).join('');
+  } catch {
+    resultsEl.innerHTML = toolError('Connection error.');
+  }
+}
+
+
 /* ── Translation (LLM) ── */
 
 async function translateDocument(prefix) {
@@ -276,6 +325,10 @@ async function translateDocument(prefix) {
         </div>
         <p id="${prefix}-translated-text" class="text-[11px] text-gray-300 leading-relaxed whitespace-pre-wrap">${escapeHtml(data.translated)}</p>
       </div>`;
+
+    if (prefix === 'doc') {
+      appendTranslationToChat(data.translated, data.language);
+    }
   } catch {
     resultsEl.innerHTML = toolError('Connection error.');
   }

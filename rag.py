@@ -13,7 +13,7 @@ if platform.system() != "Windows":
 
 import requests
 from pathlib import Path
-from openai import OpenAI, RateLimitError
+from openai import OpenAI, RateLimitError, NotFoundError, APIStatusError
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
@@ -24,13 +24,10 @@ EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
-# Free models tried in order if one is rate-limited or deprecated.
-# openrouter/free is a meta-router that auto-selects from all currently available free models.
 FALLBACK_MODELS = [
-    "openrouter/free",
-    "nvidia/llama-3.1-nemotron-nano-8b-v1:free",
-    "google/gemma-3-4b-it:free",
-    "mistralai/mistral-7b-instruct:free",
+    "google/gemini-2.0-flash-001",
+    "meta-llama/llama-4-scout",
+    "openai/gpt-4o-mini",
 ]
 
 client = OpenAI(
@@ -93,7 +90,17 @@ def generate(prompt, retries=3, backoff=5, max_tokens=512):
                     temperature=0.3,
                     max_tokens=max_tokens,
                 )
-                return response.choices[0].message.content.strip()
+                text = response.choices[0].message.content
+                if text:
+                    return text.strip()
+                print(f"  {model} returned empty content (attempt {attempt + 1}/{retries})")
+                continue
+            except NotFoundError:
+                print(f"  {model} not found / deprecated, skipping …")
+                break
+            except APIStatusError as e:
+                print(f"  {model} returned {e.status_code}: {e.message}, skipping …")
+                break
             except RateLimitError:
                 wait = backoff * (2 ** attempt)
                 print(f"  Rate limited on {model} (attempt {attempt + 1}/{retries}), waiting {wait}s …")
@@ -168,22 +175,68 @@ Provide:
 DEFENSE RESPONSE:"""
 
 
-def judge_prompt(plaintiff, defense):
-    return f"""You are a neutral, experienced judge presiding over this case.
+def rebuttal_defense_prompt(original_argument, first_defense, rebuttal, docs):
+    context = "\n\n---\n\n".join(d.page_content for d in docs)
+    return f"""You are an experienced opposing counsel in a courtroom. The plaintiff has responded to your initial defense with a rebuttal.
 
-PLAINTIFF'S ARGUMENT:
-{plaintiff}
+CASE MATERIALS:
+{context}
 
-DEFENSE'S RESPONSE:
-{defense}
+ORIGINAL PLAINTIFF ARGUMENT:
+{original_argument}
 
-Evaluate both arguments and provide:
-1. Assessment of each side's strengths
-2. Which argument is more compelling and why
-3. Key issues that remain unresolved
-4. Your preliminary ruling
+YOUR INITIAL DEFENSE:
+{first_defense}
+
+PLAINTIFF'S REBUTTAL:
+{rebuttal}
+
+Counter the plaintiff's rebuttal. Address their new points directly, exploit any remaining weaknesses, and reinforce your strongest arguments. Be aggressive but precise.
+
+DEFENSE COUNTER-REBUTTAL:"""
+
+
+def judge_prompt(history_text):
+    return f"""You are a neutral, experienced judge presiding over this case. You have observed the full trial proceedings.
+
+{history_text}
+
+Evaluate ALL arguments presented by both sides across every round and provide:
+1. Assessment of each side's strengths across the trial
+2. How the arguments evolved — did the plaintiff improve or weaken?
+3. Which side made the more compelling overall case and why
+4. Key issues that remain unresolved
+5. Your final ruling and reasoning
 
 JUDICIAL RULING:"""
+
+
+def coach_prompt(argument, docs, phase, history_text=""):
+    context = "\n\n---\n\n".join(d.page_content for d in docs)
+    phase_labels = {"opening": "opening argument", "rebuttal": "rebuttal", "closing": "closing statement"}
+    phase_label = phase_labels.get(phase, phase)
+    return f"""You are a law school professor coaching a student through a mock trial exercise.
+The student just submitted their {phase_label}. Evaluate it against the case materials.
+
+CASE MATERIALS:
+{context}
+
+TRIAL HISTORY SO FAR:
+{history_text}
+
+STUDENT'S {phase_label.upper()}:
+{argument}
+
+You MUST respond with ONLY valid JSON — no markdown, no explanation, no text before or after.
+Return this exact structure:
+{{"score": <integer 1-10>, "strengths": ["<strength 1>", "<strength 2>"], "weaknesses": ["<weakness 1>", "<weakness 2>"], "tips": ["<actionable tip 1>", "<actionable tip 2>"], "missing": ["<missing element 1>", "<missing element 2>"]}}
+
+Rules:
+- score: 1 = very poor, 10 = exceptional
+- Each array should have 2-4 items
+- Be specific to THIS argument and THESE case materials
+- For tips, tell them exactly what to say or cite
+- For missing, reference specific evidence or legal principles from the case materials they should have used"""
 
 
 def auto_analysis_prompt(docs):
@@ -224,6 +277,26 @@ HOW TO EXIT
 
 VERDICT
 [2-3 sentences: is this document favorable, neutral, or unfavorable for the signing party, and why]"""
+
+def case_suggestions_prompt(query, response, docs):
+    context = "\n\n---\n\n".join(d.page_content for d in docs[:3])
+    return f"""You are a legal analysis assistant helping a lawyer prepare a case.
+
+The lawyer just asked a question and received an analysis. Based on the case documents and the exchange below, generate exactly 4 short follow-up questions a lawyer would logically ask next.
+Make them specific to THIS case — not generic legal questions.
+Each question should be under 12 words.
+
+CASE DOCUMENTS (excerpt):
+{context}
+
+LAWYER'S QUESTION:
+{query}
+
+AI ANALYSIS (excerpt):
+{response[:800]}
+
+Return ONLY the 4 questions, numbered 1 to 4, one per line. No explanations, no preamble."""
+
 
 def suggestions_prompt(docs):
     context = "\n\n---\n\n".join(d.page_content for d in docs)
@@ -376,7 +449,7 @@ class LegalScope:
         docs = store.query(query)
 
         if not docs:
-            return "No relevant information found. Please upload documents first."
+            return {"response": "No relevant information found. Please upload documents first.", "suggestions": []}
 
         hist = self.history.get(store_id, [])
         history_text = "\n".join(hist[-3:])
@@ -386,26 +459,77 @@ class LegalScope:
         else:
             prompt = document_qa_prompt(query, docs)
 
-        response = generate(prompt)
+        response = generate(prompt, max_tokens=4096)
 
         if store_id not in self.history:
             self.history[store_id] = []
         self.history[store_id].append(f"Q: {query}\nA: {response}")
 
-        return response
+        suggestions = []
+        if mode == "case":
+            suggestions = self._suggest_case_questions(query, response, docs)
 
-    def mock_trial(self, store_id, user_argument):
+        return {"response": response, "suggestions": suggestions}
+
+    def _suggest_case_questions(self, query, response, docs):
+        try:
+            raw = generate(case_suggestions_prompt(query, response, docs), max_tokens=200)
+            lines = [l.strip() for l in raw.splitlines() if l.strip()]
+            questions = [re.sub(r'^[\d]+[\.\)]\s*', '', l) for l in lines if l]
+            return [q for q in questions if len(q) > 5][:4]
+        except Exception:
+            return []
+
+    def mock_trial(self, store_id, argument, phase="opening", history=None):
+        import json as _json
         store = self.get_or_create_store(store_id)
-        docs = store.query(user_argument)
+        docs = store.query(argument)
 
         if not docs:
             return {"error": "No case documents found. Upload documents first."}
 
-        defense = generate(opposing_counsel_prompt(user_argument, docs))
-        ruling = generate(judge_prompt(user_argument, defense))
+        history = history or []
+        history_text = "\n\n".join(
+            f"[{h['role'].upper()}] ({h.get('phase', '')})\n{h['text']}"
+            for h in history
+        )
 
-        return {
-            "plaintiff": user_argument,
-            "defense": defense,
-            "ruling": ruling,
-        }
+        if phase == "opening":
+            defense = generate(opposing_counsel_prompt(argument, docs), max_tokens=4096)
+            coaching = self._get_coaching(argument, docs, "opening", history_text)
+            return {"phase": "opening", "defense": defense, "coaching": coaching}
+
+        elif phase == "rebuttal":
+            first_argument = ""
+            first_defense = ""
+            for h in history:
+                if h.get("phase") == "opening" and h["role"] == "plaintiff":
+                    first_argument = h["text"]
+                if h.get("phase") == "opening" and h["role"] == "defense":
+                    first_defense = h["text"]
+            defense = generate(
+                rebuttal_defense_prompt(first_argument, first_defense, argument, docs),
+                max_tokens=4096,
+            )
+            coaching = self._get_coaching(argument, docs, "rebuttal", history_text)
+            return {"phase": "rebuttal", "defense": defense, "coaching": coaching}
+
+        elif phase == "closing":
+            coaching = self._get_coaching(argument, docs, "closing", history_text)
+            full_history = history_text + f"\n\n[PLAINTIFF] (closing)\n{argument}"
+            ruling = generate(judge_prompt(full_history), max_tokens=4096)
+            return {"phase": "closing", "ruling": ruling, "coaching": coaching}
+
+        return {"error": f"Unknown phase: {phase}"}
+
+    def _get_coaching(self, argument, docs, phase, history_text):
+        import json as _json
+        try:
+            raw = generate(coach_prompt(argument, docs, phase, history_text), max_tokens=600)
+            raw = raw.strip()
+            if raw.startswith("```"):
+                raw = re.sub(r"^```(?:json)?\s*", "", raw)
+                raw = re.sub(r"\s*```$", "", raw)
+            return _json.loads(raw)
+        except Exception:
+            return {"score": 0, "strengths": [], "weaknesses": [], "tips": [], "missing": []}

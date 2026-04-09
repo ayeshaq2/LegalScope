@@ -2,6 +2,76 @@
  *  CASE_WORKSPACE.JS — Case workspace (Files / Analyze / Mock Trial)
  * ═══════════════════════════════════════════════════════ */
 
+/* ── Google Drive Import for Case Projects ── */
+
+async function openCaseDrivePicker() {
+  if (!AppState.activeProject) {
+    alert('Please open a case project first.');
+    return;
+  }
+  if (!_driveAccessToken) {
+    window.location.href = '/auth/google';
+    return;
+  }
+  if (!_pickerApiLoaded) {
+    gapi.load('picker', { callback: () => { _pickerApiLoaded = true; _buildCasePicker(); } });
+  } else {
+    _buildCasePicker();
+  }
+}
+
+function _buildCasePicker() {
+  const view = new google.picker.DocsView()
+    .setIncludeFolders(false)
+    .setMimeTypes('application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.google-apps.document');
+
+  const picker = new google.picker.PickerBuilder()
+    .setTitle('Select files for your case')
+    .setOAuthToken(_driveAccessToken)
+    .setDeveloperKey(_driveApiKey)
+    .addView(view)
+    .setCallback(_onCasePickerSelected)
+    .build();
+
+  picker.setVisible(true);
+}
+
+async function _onCasePickerSelected(data) {
+  if (data[google.picker.Response.ACTION] !== google.picker.Action.PICKED) return;
+  if (!AppState.activeProject) return;
+
+  const file     = data[google.picker.Response.DOCUMENTS][0];
+  const fileId   = file[google.picker.Document.ID];
+  const fileName = file[google.picker.Document.NAME];
+  const mimeType = file[google.picker.Document.MIME_TYPE];
+
+  const progress = document.getElementById('case-drive-import-progress');
+  if (progress) progress.classList.remove('hidden');
+
+  try {
+    const res = await fetch(`/api/projects/${AppState.activeProject.id}/import-drive`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_id: fileId, file_name: fileName, mime_type: mimeType }),
+    });
+    const result = await res.json();
+
+    if (progress) progress.classList.add('hidden');
+
+    if (res.ok) {
+      AppState.activeProject = result.project;
+      renderCaseFiles(result.project.files);
+      updateSidebarFiles(result.project.files);
+    } else {
+      alert(result.error || 'Import failed.');
+    }
+  } catch {
+    if (progress) progress.classList.add('hidden');
+    alert('Connection error — is the server running?');
+  }
+}
+
+
 /* ── Tab Switching ── */
 
 function switchCaseTab(tab) {
@@ -181,7 +251,7 @@ async function sendCaseMessage() {
 
     const reply = data.response || data.error || 'No response.';
     caseChatHistory.push({ role: 'ai', text: reply });
-    appendAiMessage(box, reply, 'gold');
+    appendAiMessage(box, reply, 'gold', false, data.suggestions);
 
     const pdfBtn = document.getElementById('btn-export-case-pdf');
     if (pdfBtn) pdfBtn.classList.remove('hidden');
@@ -193,7 +263,7 @@ async function sendCaseMessage() {
 }
 
 // Shared AI message bubble renderer
-function appendAiMessage(container, text, color, isError) {
+function appendAiMessage(container, text, color, isError, suggestions) {
   const gradFrom = color === 'gold' ? 'from-gold-400' : 'from-blue-400';
   const gradTo = color === 'gold' ? 'to-gold-600' : 'to-blue-600';
   const textColor = isError ? 'text-red-400/80' : 'text-gray-300';
@@ -210,10 +280,27 @@ function appendAiMessage(container, text, color, isError) {
         <span class="text-[9px] text-gray-600 font-medium">just now</span>
       </div>
       <div class="chat-bubble-ai rounded-2xl rounded-tl-md p-5">
-        <p class="text-[13px] ${textColor} leading-relaxed whitespace-pre-wrap">${escapeHtml(text)}</p>
+        <p class="text-[13px] ${textColor} leading-relaxed whitespace-pre-wrap">${isError ? escapeHtml(text) : formatMarkdown(text)}</p>
       </div>
     </div>`;
   container.appendChild(msg);
+
+  if (suggestions && suggestions.length) {
+    const chipsRow = document.createElement('div');
+    chipsRow.className = 'flex flex-wrap gap-2 ml-11 mt-2';
+    suggestions.forEach(q => {
+      const chip = document.createElement('button');
+      chip.className = 'text-[11px] px-3 py-1.5 rounded-full border border-gold-400/20 bg-gold-400/[0.06] text-gold-400 hover:bg-gold-400/[0.12] hover:border-gold-400/40 transition-all duration-200 cursor-pointer';
+      chip.textContent = q;
+      chip.addEventListener('click', () => {
+        insertCaseQuery(q);
+        sendCaseMessage();
+      });
+      chipsRow.appendChild(chip);
+    });
+    container.appendChild(chipsRow);
+  }
+
   container.scrollTop = container.scrollHeight;
 }
 
@@ -279,43 +366,197 @@ async function exportCaseReportPDF() {
 
 /* ═══ MOCK TRIAL TAB ═══ */
 
+let trialPhase = 'opening';
+let trialHistory = [];
 let lastTrialData = null;
 
+const PHASE_CONFIG = {
+  opening:  { label: 'Phase 1 — Opening Argument (Plaintiff)', btn: 'Submit Opening',  next: 'rebuttal', loading: 'Opposing counsel is preparing a response …' },
+  rebuttal: { label: 'Phase 2 — Rebuttal (Plaintiff)',         btn: 'Submit Rebuttal',  next: 'closing',  loading: 'Defense is countering your rebuttal …' },
+  closing:  { label: 'Phase 3 — Closing Statement (Plaintiff)', btn: 'Submit Closing',  next: null,        loading: 'The judge is deliberating …' },
+};
+
+function _updateStepIndicator(activePhase) {
+  const phases = ['opening', 'rebuttal', 'closing'];
+  const activeIdx = phases.indexOf(activePhase);
+  phases.forEach((p, i) => {
+    const step = document.getElementById('trial-step-' + p);
+    if (!step) return;
+    const dot = step.querySelector('div');
+    const txt = step.querySelector('span');
+    if (i <= activeIdx) {
+      dot.className = 'w-7 h-7 rounded-full bg-gold-400 text-navy-950 flex items-center justify-center text-[11px] font-bold flex-shrink-0';
+      txt.className = 'text-[11px] font-semibold text-gold-400';
+    } else {
+      dot.className = 'w-7 h-7 rounded-full bg-white/[0.06] text-gray-600 flex items-center justify-center text-[11px] font-bold flex-shrink-0';
+      txt.className = 'text-[11px] font-semibold text-gray-600';
+    }
+  });
+}
+
+function _renderCoachingCard(coaching) {
+  if (!coaching || !coaching.score) return '';
+  const score = coaching.score;
+  let scoreColor = 'text-red-400 bg-red-500/10 border-red-400/20';
+  if (score >= 8) scoreColor = 'text-green-400 bg-green-500/10 border-green-400/20';
+  else if (score >= 5) scoreColor = 'text-yellow-400 bg-yellow-500/10 border-yellow-400/20';
+
+  const listItems = (arr, icon) => (arr || []).map(t =>
+    `<li class="flex items-start gap-2 text-[11px] text-gray-400 leading-relaxed"><span class="flex-shrink-0 mt-0.5">${icon}</span>${escapeHtml(t)}</li>`
+  ).join('');
+
+  return `
+    <div class="report-card p-5 rounded-xl border border-gold-400/10 bg-gold-400/[0.02]">
+      <div class="flex items-center gap-3 mb-4">
+        <svg class="w-4 h-4 text-gold-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5"/></svg>
+        <span class="text-[12px] font-bold text-gold-400">Coach Feedback</span>
+        <span class="ml-auto text-[13px] font-bold px-2.5 py-0.5 rounded-md border ${scoreColor}">${score}/10</span>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <p class="text-[10px] font-bold text-green-400/80 uppercase tracking-wide mb-2">Strengths</p>
+          <ul class="space-y-1.5">${listItems(coaching.strengths, '<span class="text-green-400">+</span>')}</ul>
+        </div>
+        <div>
+          <p class="text-[10px] font-bold text-red-400/80 uppercase tracking-wide mb-2">Weaknesses</p>
+          <ul class="space-y-1.5">${listItems(coaching.weaknesses, '<span class="text-red-400">-</span>')}</ul>
+        </div>
+        <div>
+          <p class="text-[10px] font-bold text-blue-400/80 uppercase tracking-wide mb-2">Tips</p>
+          <ul class="space-y-1.5">${listItems(coaching.tips, '<span class="text-blue-400">&rarr;</span>')}</ul>
+        </div>
+        <div>
+          <p class="text-[10px] font-bold text-orange-400/80 uppercase tracking-wide mb-2">Missing Elements</p>
+          <ul class="space-y-1.5">${listItems(coaching.missing, '<span class="text-orange-400">!</span>')}</ul>
+        </div>
+      </div>
+    </div>`;
+}
+
+function _appendRound(phase, argument, response, coaching, responseLabel) {
+  const timeline = document.getElementById('trial-timeline');
+  const phaseTitle = phase === 'opening' ? 'Opening Argument' : phase === 'rebuttal' ? 'Rebuttal' : 'Closing Statement';
+
+  const round = document.createElement('div');
+  round.className = 'space-y-4';
+  round.innerHTML = `
+    <div class="report-card p-5 rounded-xl">
+      <h3 class="text-[12px] font-bold text-white mb-3 flex items-center gap-2">
+        <span class="text-[9px] font-semibold text-blue-400 bg-blue-500/10 px-2 py-[2px] rounded-md uppercase tracking-wide">Plaintiff</span>
+        ${escapeHtml(phaseTitle)}
+      </h3>
+      <div class="text-[13px] text-gray-300 leading-relaxed whitespace-pre-wrap">${formatMarkdown(argument)}</div>
+    </div>
+    <div class="report-card p-5 rounded-xl">
+      <h3 class="text-[12px] font-bold text-white mb-3 flex items-center gap-2">
+        <span class="text-[9px] font-semibold ${responseLabel === 'Judge' ? 'text-gold-400 bg-gold-400/10' : 'text-red-400 bg-red-500/10'} px-2 py-[2px] rounded-md uppercase tracking-wide">${responseLabel}</span>
+        ${responseLabel === 'Judge' ? 'Judicial Ruling' : 'Opposing Counsel'}
+      </h3>
+      <div class="text-[13px] text-gray-300 leading-relaxed whitespace-pre-wrap">${formatMarkdown(response)}</div>
+    </div>
+    ${_renderCoachingCard(coaching)}`;
+  timeline.appendChild(round);
+}
+
 async function runCaseTrial() {
-  const argument = document.getElementById('case-trial-argument').value.trim();
+  const textarea = document.getElementById('case-trial-argument');
+  const argument = textarea.value.trim();
   if (!argument || !AppState.activeProject) return;
 
-  document.getElementById('case-trial-results').classList.add('hidden');
-  document.getElementById('case-trial-loading').classList.remove('hidden');
+  const config = PHASE_CONFIG[trialPhase];
+  const loading = document.getElementById('case-trial-loading');
+  const loadingText = document.getElementById('trial-loading-text');
+  const inputArea = document.getElementById('trial-input-area');
+
+  loadingText.textContent = config.loading;
+  loading.classList.remove('hidden');
+  inputArea.classList.add('hidden');
 
   try {
     const res = await fetch(`/api/projects/${AppState.activeProject.id}/mock_trial`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ argument }),
+      body: JSON.stringify({ argument, phase: trialPhase, history: trialHistory }),
     });
     const data = await res.json();
+    loading.classList.add('hidden');
 
-    document.getElementById('case-trial-loading').classList.add('hidden');
-
-    if (res.ok) {
-      lastTrialData = { plaintiff: data.plaintiff, defense: data.defense, ruling: data.ruling };
-      document.getElementById('case-trial-plaintiff').textContent = data.plaintiff;
-      document.getElementById('case-trial-defense').textContent = data.defense;
-      document.getElementById('case-trial-ruling').textContent = data.ruling;
-      document.getElementById('case-trial-results').classList.remove('hidden');
-    } else {
+    if (!res.ok) {
+      inputArea.classList.remove('hidden');
       alert(data.error || 'Mock trial failed.');
+      return;
     }
+
+    trialHistory.push({ role: 'plaintiff', phase: trialPhase, text: argument });
+
+    if (trialPhase === 'closing') {
+      trialHistory.push({ role: 'judge', phase: 'closing', text: data.ruling });
+      _appendRound('closing', argument, data.ruling, data.coaching, 'Judge');
+
+      lastTrialData = { history: trialHistory, coaching: data.coaching };
+      document.getElementById('trial-final-actions').classList.remove('hidden');
+      _updateStepIndicator('closing');
+    } else {
+      trialHistory.push({ role: 'defense', phase: trialPhase, text: data.defense });
+      const label = trialPhase === 'opening' ? 'Opening Argument' : 'Rebuttal';
+      _appendRound(trialPhase, argument, data.defense, data.coaching, 'Defense');
+
+      trialPhase = config.next;
+      const nextConfig = PHASE_CONFIG[trialPhase];
+      _updateStepIndicator(trialPhase);
+
+      document.getElementById('trial-input-label').textContent = nextConfig.label;
+      document.getElementById('btn-case-trial').textContent = nextConfig.btn;
+      document.getElementById('btn-skip-to-ruling').classList.remove('hidden');
+      document.getElementById('trial-suggestion-chips').classList.add('hidden');
+      textarea.value = '';
+      textarea.placeholder = trialPhase === 'rebuttal'
+        ? 'Address the defense\'s counterarguments …'
+        : 'Present your closing statement …';
+      inputArea.classList.remove('hidden');
+      textarea.focus();
+    }
+
+    const container = document.getElementById('case-tab-trial');
+    container.scrollTop = container.scrollHeight;
   } catch {
-    document.getElementById('case-trial-loading').classList.add('hidden');
+    loading.classList.add('hidden');
+    inputArea.classList.remove('hidden');
     alert('Connection error — is the server running?');
   }
 }
 
+async function skipToRuling() {
+  trialPhase = 'closing';
+  _updateStepIndicator('closing');
+  const nextConfig = PHASE_CONFIG['closing'];
+  document.getElementById('trial-input-label').textContent = nextConfig.label;
+  document.getElementById('btn-case-trial').textContent = nextConfig.btn;
+  document.getElementById('btn-skip-to-ruling').classList.add('hidden');
+  document.getElementById('case-trial-argument').placeholder = 'Present your closing statement …';
+  document.getElementById('case-trial-argument').focus();
+}
+
 function resetCaseTrial() {
-  document.getElementById('case-trial-results').classList.add('hidden');
+  trialPhase = 'opening';
+  trialHistory = [];
+  lastTrialData = null;
+
+  document.getElementById('trial-timeline').innerHTML = '';
+  document.getElementById('trial-final-actions').classList.add('hidden');
+  document.getElementById('case-trial-loading').classList.add('hidden');
+  document.getElementById('btn-skip-to-ruling').classList.add('hidden');
+  document.getElementById('trial-suggestion-chips').classList.remove('hidden');
+
+  const inputArea = document.getElementById('trial-input-area');
+  inputArea.classList.remove('hidden');
+
+  const config = PHASE_CONFIG['opening'];
+  document.getElementById('trial-input-label').textContent = config.label;
+  document.getElementById('btn-case-trial').textContent = config.btn;
   document.getElementById('case-trial-argument').value = '';
+  document.getElementById('case-trial-argument').placeholder = 'Present your opening argument here …';
+  _updateStepIndicator('opening');
   document.getElementById('case-trial-argument').focus();
 }
 

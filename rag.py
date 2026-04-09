@@ -248,6 +248,22 @@ DOCUMENT:
 {context}"""
 
 
+def translation_prompt(text, target_language):
+    return f"""You are a professional legal translator. Translate the following legal text into {target_language}.
+
+RULES:
+- Preserve the meaning and legal intent of every clause
+- Keep standard legal terms in their accepted {target_language} equivalents
+- Where a legal concept has no direct equivalent, keep the original term in parentheses next to the translation
+- Maintain the original formatting (bullet points, section headings, numbering)
+- Do not add commentary, explanations, or disclaimers — return ONLY the translation
+
+TEXT TO TRANSLATE:
+{text}
+
+TRANSLATION:"""
+
+
 # ─── Per-Project Document Store ──────────────────────────────
 
 class DocumentStore:

@@ -7,7 +7,7 @@ load_dotenv()
 
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
-from rag import LegalScope, compute_readability, extract_text
+from rag import LegalScope, compute_readability, extract_text, translation_prompt, generate
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -265,6 +265,38 @@ def tool_statutes():
         return jsonify({"bills": bills})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/tools/translate", methods=["POST"])
+def tool_translate():
+    data = request.get_json(force=True)
+    text = data.get("text", "").strip()
+    target_language = data.get("language", "").strip()
+    session_id = data.get("session_id", "").strip()
+
+    if not target_language:
+        return jsonify({"error": "Target language is required"}), 400
+
+    if not text and session_id:
+        eng = get_engine()
+        store_id = "user_" + session_id
+        store = eng.get_or_create_store(store_id)
+        docs = store.query("full document content summary overview")
+        if docs:
+            text = "\n\n".join(d.page_content for d in docs[:4])
+
+    if not text:
+        return jsonify({"error": "No text provided and no document found to translate"}), 400
+
+    if len(text) > 8000:
+        text = text[:8000]
+
+    try:
+        prompt = translation_prompt(text, target_language)
+        translated = generate(prompt, max_tokens=1024)
+        return jsonify({"translated": translated, "language": target_language})
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 429
 
 
 if __name__ == "__main__":
